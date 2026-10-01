@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Alt backend test</title>
+        <link rel="stylesheet" href="/css/style.css" />
+    </head>
+    <body>
+        <div id="app">
+            <div v-if="!currentLogin" class="auth-box">
+                <h1>Alt</h1>
+                <input v-model="login" placeholder="login" />
+                <input v-model="password" type="password" placeholder="password" />
+                <button @click="register">Register</button>
+                <button @click="loginUser">Login</button>
+                <div class="status">{{ status }}</div>
+            </div>
+
+            <div v-else class="layout">
+                <aside class="sidebar">
+                    <div class="side-block">
+                        <div class="side-header">Список серверов</div>
+                        <div
+                            v-for="s in spaces"
+                            :key="s.id"
+                            class="side-item"
+                            :class="{ active: s.id === currentSpaceId }"
+                        >
+                            <button class="linklike" @click="selectSpace(s)">{{ s.name }}</button>
+                            <button v-if="!s.isMember" class="small" @click="joinSpace(s)">
+                                Вступить
+                            </button>
+                        </div>
+                        <button class="small" @click="createSpace">+ Создать сервер</button>
+                    </div>
+
+                    <div class="side-block chats">
+                        <div class="side-header">Чаты</div>
+                        <div
+                            v-for="c in channels"
+                            :key="c.id"
+                            class="side-item"
+                            :class="{ active: currentChannel && c.id === currentChannel.id }"
+                        >
+                            <button class="linklike" @click="selectChannel(c)">
+                                # {{ c.name }}
+                            </button>
+                        </div>
+                        <button v-if="currentSpaceId" class="small" @click="createChannel">
+                            + Создать чат
+                        </button>
+                    </div>
+
+                    <div class="user-panel">
+                        <div class="avatar" :style="{ background: avatarColor(currentLogin) }">
+                            {{ avatarLetter(currentLogin) }}
+                        </div>
+                        <span class="whoami">{{ currentLogin }}</span>
+                        <button class="small" @click="logout">Logout</button>
+                    </div>
+                </aside>
+
+                <main class="main">
+                    <div v-if="!currentChannel" class="empty">
+                        Здесь как то пусто...<br />Выберите чат что бы начать общение
+                    </div>
+
+                    <template v-else>
+                        <div class="channel-header"># {{ currentChannel.name }}</div>
+
+                        <div class="messages" ref="messagesBox">
+                            <div v-for="m in messages" :key="m.id" class="message">
+                                <div class="avatar" :style="{ background: avatarColor(m.login) }">
+                                    {{ avatarLetter(m.login) }}
+                                </div>
+                                <div class="bubble">
+                                    <div class="bubble-head">
+                                        <b>{{ m.login }}</b>
+                                        <span class="meta">{{ formatTime(m.created_at) }}</span>
+                                    </div>
+                                    <div class="bubble-text">{{ m.content }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form class="input-row" @submit.prevent="send">
+                            <input
+                                v-model="content"
+                                placeholder="Сообщение..."
+                                autocomplete="off"
+                            />
+                            <button type="submit">Send</button>
+                        </form>
+                    </template>
+                </main>
+            </div>
+        </div>
+
+        <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="/js/app.js"></script>
+    </body>
+</html>

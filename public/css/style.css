@@ -1,0 +1,220 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #dfe6f2;
+  color: #222222;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* каркас */
+
+.layout {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 230px;
+  background: #cfd9ea;
+  border-right: 1px solid #b0bccf;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* списки серверов и чатов */
+
+.side-block {
+  margin-bottom: 10px;
+}
+
+.side-block.chats {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.side-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: #5a6780;
+  margin: 4px 0;
+}
+
+.side-item {
+  background: #dde5f1;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.side-item.active {
+  background: #eef3fa;
+}
+
+.linklike {
+  flex: 1;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 14px;
+  padding: 2px;
+}
+
+.small {
+  border: 1px solid #b0bccf;
+  background: #ffffff;
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 3px 8px;
+  margin: 3px 2px;
+}
+
+/* панель пользователя */
+
+.user-panel {
+  margin-top: auto;
+  background: #b9c6dc;
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whoami {
+  flex: 1;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
+  line-height: 30px;
+}
+
+/* лента сообщений */
+
+.channel-header {
+  background: #97a5bd;
+  color: #ffffff;
+  font-weight: bold;
+  padding: 8px 12px;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.bubble {
+  background: #8d9ab2;
+  color: #ffffff;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-left: 8px;
+  max-width: 70%;
+}
+
+.bubble-head b {
+  font-size: 13px;
+}
+
+.meta {
+  font-size: 11px;
+  color: #dfe6f2;
+  margin-left: 6px;
+}
+
+.bubble-text {
+  font-size: 14px;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #7d8aa5;
+}
+
+/* ввод сообщения */
+
+.input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: #cfd9ea;
+}
+
+.input-row input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #b0bccf;
+  border-radius: 4px;
+}
+
+.input-row button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 4px;
+  background: #5b6d94;
+  color: #ffffff;
+}
+
+/* форма входа */
+
+.auth-box {
+  width: 300px;
+  margin: 80px auto;
+  padding: 16px;
+  background: #f2f5fa;
+  border: 1px solid #b0bccf;
+  border-radius: 4px;
+}
+
+.auth-box input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  margin: 4px 0;
+  border: 1px solid #b0bccf;
+  border-radius: 4px;
+}
+
+.auth-box button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  background: #5b6d94;
+  color: #ffffff;
+  margin-right: 4px;
+}
+
+.status {
+  font-size: 13px;
+  color: #7d8aa5;
+  margin-top: 6px;
+}
