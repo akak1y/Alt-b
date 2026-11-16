@@ -9,45 +9,77 @@
     <body>
         <div id="app">
             <div v-if="s.phase === 'idle'" class="auth-screen">
-                <form class="auth-box" @submit.prevent="doAuth">
-                    <span class="auth-symbol" aria-hidden="true">A</span>
-                    <h1>ALT</h1>
-                    <p class="auth-description">Место для ваших разговоров</p>
-                    <div class="tabs">
-                        <button
-                            type="button"
-                            :class="{ on: mode === 'login' }"
-                            @click="mode = 'login'"
-                        >
-                            Вход
-                        </button>
-                        <button
-                            type="button"
-                            :class="{ on: mode === 'register' }"
-                            @click="mode = 'register'"
-                        >
-                            Регистрация
-                        </button>
-                    </div>
-
-                    <label for="auth-username">Логин</label>
-                    <input
-                        id="auth-username"
-                        v-model="username"
-                        placeholder="Логин"
-                        autocomplete="username"
+                <div class="auth-grid" aria-hidden="true"></div>
+                <div class="auth-scanline" aria-hidden="true"></div>
+                <header class="auth-logo-wrapper">
+                    <h1 class="visually-hidden">ALT</h1>
+                    <img
+                        v-if="!logoFailed"
+                        src="/assets/alt-logo.png"
+                        alt=""
+                        class="auth-logo"
+                        @error="logoFailed = true"
                     />
+                    <span v-else class="auth-logo-fallback" aria-hidden="true">ALT</span>
+                </header>
+                <div class="auth-visualizer" aria-hidden="true">
+                    <span v-for="n in 17" :key="n"></span>
+                </div>
+                <div class="auth-diagonal" aria-hidden="true"></div>
+                <div class="auth-skull" aria-hidden="true">
+                    <img src="/assets/skull.png" alt="" />
+                </div>
 
-                    <label for="auth-password">Пароль</label>
-                    <input
-                        id="auth-password"
-                        v-model="password"
-                        type="password"
-                        placeholder="Пароль"
-                        :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
-                    />
+                <main class="auth-panel">
+                    <form class="auth-box" @submit.prevent="doLogin">
+                        <h2>Вход</h2>
+                        <div class="auth-fields">
+                            <div>
+                                <label for="auth-username">Логин</label>
+                                <input
+                                    id="auth-username"
+                                    v-model="username"
+                                    placeholder="Логин"
+                                    autocomplete="username"
+                                />
+                            </div>
+                            <div>
+                                <label for="auth-password">Пароль</label>
+                                <input
+                                    id="auth-password"
+                                    v-model="password"
+                                    type="password"
+                                    placeholder="Пароль"
+                                    autocomplete="current-password"
+                                />
+                            </div>
+                        </div>
+                        <button type="submit" class="primary" :disabled="busy">ВХОД</button>
+                    </form>
 
-                    <template v-if="mode === 'register'">
+                    <form class="auth-box auth-register" @submit.prevent="doRegister">
+                        <h2>Регистрация</h2>
+                        <div class="auth-fields">
+                            <div>
+                                <label for="register-username">Логин</label>
+                                <input
+                                    id="register-username"
+                                    v-model="registerUsername"
+                                    placeholder="Логин"
+                                    autocomplete="username"
+                                />
+                            </div>
+                            <div>
+                                <label for="register-password">Пароль</label>
+                                <input
+                                    id="register-password"
+                                    v-model="registerPassword"
+                                    type="password"
+                                    placeholder="Пароль"
+                                    autocomplete="new-password"
+                                />
+                            </div>
+                        </div>
                         <label for="auth-token">Код приглашения</label>
                         <input
                             id="auth-token"
@@ -55,13 +87,15 @@
                             placeholder="Код приглашения"
                             autocomplete="off"
                         />
-                    </template>
-
-                    <button type="submit" class="primary" :disabled="busy">
-                        {{ authButtonLabel }}
-                    </button>
+                        <button type="submit" class="primary" :disabled="busy">РЕГИСТРАЦИЯ</button>
+                    </form>
                     <div v-if="err" class="err" role="alert">{{ err }}</div>
-                </form>
+                </main>
+
+                <div class="auth-rail" aria-hidden="true">
+                    <span>ALT</span><span>MATRIX</span><span class="rail-line"></span>
+                </div>
+                <div class="auth-bottom" aria-hidden="true"></div>
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">
