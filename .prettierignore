@@ -1,4 +1,5 @@
 node_modules/
+public/js/alt.js
 package-lock.json
 .env
 matrix/

@@ -1,15 +1,27 @@
 import { describe, it, expect, vi } from 'vitest';
+import { SyncState } from 'matrix-js-sdk';
 import {
     resolveBaseUrl,
     makeSessionStore,
     validateSession,
     performLogin,
+    isReadySyncState,
     registerWithUIA,
     buildRoomViews,
     ALLOWED_HOMESERVERS,
     DEFAULT_HOMESERVER,
     SESSION_KEY,
 } from '../public/js/matrix-core.js';
+
+describe('состояния синхронизации matrix-js-sdk', () => {
+    it('открывает клиент после PREPARED и последующих SYNCING', () => {
+        expect(isReadySyncState(SyncState.Prepared)).toBe(true);
+        expect(isReadySyncState(SyncState.Syncing)).toBe(true);
+        expect(isReadySyncState(SyncState.Reconnecting)).toBe(false);
+        expect(isReadySyncState(SyncState.Error)).toBe(false);
+        expect(SyncState.SYNCED).toBeUndefined();
+    });
+});
 
 const memStorage = () => {
     const m = new Map();

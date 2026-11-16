@@ -33,7 +33,7 @@ const ALLOWED_CONNECT = [
     'http://localhost:8008',
     'http://localhost:3000',
 ];
-const ALLOWED_SCRIPT = ["'self'", 'https://unpkg.com', 'https://esm.sh'];
+const ALLOWED_SCRIPT = ["'self'"];
 
 app.use((req, res, next) => {
     res.setHeader(

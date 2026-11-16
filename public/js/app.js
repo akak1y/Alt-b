@@ -1,8 +1,9 @@
+import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
 
-const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
-
 createApp({
+    render,
     setup() {
         const s = ref(mc.getState());
         const unsub = mc.subscribe((v) => {

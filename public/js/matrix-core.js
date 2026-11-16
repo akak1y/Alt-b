@@ -79,6 +79,12 @@ export async function performLogin(client, { baseUrl, username, password }, stor
     return res;
 }
 
+// В matrix-js-sdk нет состояния SYNCED: первая синхронизация завершается
+// PREPARED, а последующие запросы /sync отправляют SYNCING.
+export function isReadySyncState(syncState) {
+    return syncState === 'PREPARED' || syncState === 'SYNCING';
+}
+
 // P0-3: многошаговый UIA. Стадия считается ПРИНЯТОЙ только если она исчезла
 // из flows следующего 401. Если стадия осталась при том же session — это отказ
 // по значению (неверный/истёкший код) → явная ошибка, а не «следующий шаг».

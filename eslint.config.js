@@ -3,7 +3,14 @@ const globals = require('globals');
 
 module.exports = [
     {
-        ignores: ['node_modules/', 'coverage/', 'dist/', 'matrix/', 'synapse-data/'],
+        ignores: [
+            'node_modules/',
+            'coverage/',
+            'dist/',
+            'matrix/',
+            'synapse-data/',
+            'public/js/alt.js',
+        ],
     },
     js.configs.recommended,
     {

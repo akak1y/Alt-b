@@ -1,7 +1,6 @@
 // Единственный слой, знающий про matrix-js-sdk. Вся чистая логика — в
-// matrix-core.js (тестируется без SDK). P1-5: версия закреплена и синхронна
-// с package.json (37.13.0).
-import * as sdk from 'https://esm.sh/matrix-js-sdk@37.13.0';
+// matrix-core.js (тестируется без SDK). Браузерный код собирается из npm-зависимостей.
+import * as sdk from 'matrix-js-sdk';
 import {
     SESSION_KEY,
     HS_KEY,
@@ -10,6 +9,7 @@ import {
     makeSessionStore,
     validateSession,
     performLogin,
+    isReadySyncState,
     registerWithUIA,
     buildRoomViews,
 } from './matrix-core.js';
@@ -60,17 +60,17 @@ function refreshRooms() {
 
 function wire() {
     client.on(sdk.ClientEvent.Sync, (syncState) => {
-        if (syncState === sdk.SyncState.SYNCED) {
+        if (isReadySyncState(syncState)) {
             refreshRooms();
             state.phase = 'ready';
             state.connection = 'online';
             state.error = '';
             state.myUserId = client.getUserId() || '';
             state.myName = client.getUser?.()?.displayName || state.myUserId;
-        } else if (syncState === sdk.SyncState.SYNCING) {
+        } else if (syncState === sdk.SyncState.Catchup) {
             state.connection = 'syncing';
             if (state.phase !== 'ready') state.phase = 'syncing';
-        } else if (syncState === sdk.SyncState.ERROR) {
+        } else if (syncState === sdk.SyncState.Error || syncState === sdk.SyncState.Reconnecting) {
             // P0-2: временная ошибка sync — SDK сам ретраит с тем же since,
             // сессию не теряем, показываем переподключение
             state.connection = 'reconnecting';
