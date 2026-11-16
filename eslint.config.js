@@ -3,7 +3,7 @@ const globals = require('globals');
 
 module.exports = [
     {
-        ignores: ['node_modules/', 'coverage/', 'dist/'],
+        ignores: ['node_modules/', 'coverage/', 'dist/', 'matrix/', 'synapse-data/'],
     },
     js.configs.recommended,
     {
@@ -23,11 +23,29 @@ module.exports = [
     {
         files: ['public/**/*.js'],
         languageOptions: {
-            sourceType: 'script',
+            sourceType: 'module',
             globals: {
                 ...globals.browser,
                 Vue: 'readonly',
-                io: 'readonly',
+            },
+        },
+    },
+    {
+        files: ['tests/**/*.js'],
+        languageOptions: {
+            sourceType: 'module',
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
+    // корневые ESM-конфиги (vitest.config.js и будущие vite.config.js и т.п.)
+    {
+        files: ['*.config.js', '*.config.mjs'],
+        languageOptions: {
+            sourceType: 'module',
+            globals: {
+                ...globals.node,
             },
         },
     },
