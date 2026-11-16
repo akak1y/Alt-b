@@ -4,7 +4,8 @@
     --text: #f1f5ff;
     --muted: #b6c4da;
     --accent: #aaa3ff;
-    --mint: #80e6d4;
+    --mint: #75e5f0;
+    --pink: #f193d1;
     --glass: rgb(19 31 59 / 76%);
     --glass-soft: rgb(31 47 79 / 62%);
     --surface: rgb(255 255 255 / 7%);
@@ -19,7 +20,8 @@
     --text: #1c2944;
     --muted: #4b5c76;
     --accent: #4439ab;
-    --mint: #137b75;
+    --mint: #086f84;
+    --pink: #a02d7f;
     --glass: rgb(248 251 255 / 82%);
     --glass-soft: rgb(235 242 255 / 78%);
     --surface: rgb(32 56 105 / 6%);
@@ -51,8 +53,8 @@ body {
     font-size: 14px;
     line-height: 1.5;
     background:
-        radial-gradient(ellipse at 16% 18%, #273c75 0, transparent 45%),
-        radial-gradient(ellipse at 84% 78%, #403471 0, transparent 48%), #0b1830;
+        radial-gradient(ellipse at 16% 18%, #293879 0, transparent 45%),
+        radial-gradient(ellipse at 84% 78%, #58316f 0, transparent 48%), #12122e;
 }
 
 :root[data-theme='light'] body {
@@ -70,10 +72,24 @@ body::before {
     width: min(50vw, 620px);
     aspect-ratio: 1;
     border-radius: 50%;
-    background: radial-gradient(circle, rgb(111 116 226 / 33%), transparent 68%);
+    background: radial-gradient(circle, rgb(172 96 213 / 28%), transparent 68%);
     content: '';
     pointer-events: none;
     animation: glow 18s ease-in-out infinite alternate;
+}
+
+/* Сетка из макета: едва заметна под стеклянными панелями и не мешает читать. */
+body::after {
+    position: fixed;
+    z-index: 0;
+    inset: 0;
+    background-image:
+        linear-gradient(rgb(135 157 226 / 7%) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(135 157 226 / 7%) 1px, transparent 1px);
+    background-size: 32px 32px;
+    content: '';
+    mask-image: radial-gradient(ellipse at 50% 28%, #000, transparent 80%);
+    pointer-events: none;
 }
 
 @keyframes glow {
@@ -104,14 +120,14 @@ button:disabled {
 .primary {
     border: 1px solid rgb(255 255 255 / 19%);
     border-radius: 12px;
-    background: linear-gradient(125deg, #676ad6, #7256b7);
-    color: #fff;
+    background: linear-gradient(125deg, #70e1ef, #b0a2fa);
+    color: #171b38;
     font-weight: 700;
     box-shadow: 0 6px 18px rgb(64 57 142 / 20%);
 }
 
 .primary:hover:not(:disabled) {
-    background: linear-gradient(125deg, #7779e8, #8267c8);
+    background: linear-gradient(125deg, #9aebf5, #c5b8ff);
 }
 
 .small {
@@ -159,6 +175,7 @@ button:disabled {
 }
 
 .auth-box {
+    position: relative;
     width: min(100%, 420px);
     padding: clamp(24px, 5vw, 38px);
     border: 1px solid var(--stroke);
@@ -168,6 +185,19 @@ button:disabled {
         var(--shadow),
         inset 0 1px rgb(255 255 255 / 15%);
     backdrop-filter: blur(22px);
+    overflow: hidden;
+}
+
+/* Тонкая цветная линия повторяет диагональный акцент макета. */
+.auth-box::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 46%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--pink), var(--mint));
+    content: '';
+    pointer-events: none;
 }
 
 .auth-symbol,
@@ -176,7 +206,7 @@ button:disabled {
 .loading-mark {
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, rgb(139 150 255 / 34%), rgb(100 221 202 / 24%));
+    background: linear-gradient(135deg, rgb(241 147 209 / 28%), rgb(117 229 240 / 25%));
     color: var(--text);
 }
 
@@ -186,14 +216,18 @@ button:disabled {
     margin: 0 auto 14px;
     border: 1px solid var(--stroke);
     border-radius: 17px;
-    font-size: 30px;
+    font-size: 26px;
+    font-weight: 800;
+    text-shadow: 2px 2px var(--pink);
 }
 
 .auth-box h1 {
     margin: 0;
     font-size: 32px;
-    letter-spacing: -0.04em;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    letter-spacing: 0.08em;
     text-align: center;
+    text-shadow: 2px 2px rgb(241 147 209 / 36%);
 }
 
 .auth-description {
@@ -346,13 +380,16 @@ input::placeholder {
     height: 38px;
     border: 1px solid var(--stroke);
     border-radius: 12px;
-    font-size: 23px;
+    font-size: 20px;
+    font-weight: 800;
+    text-shadow: 2px 2px var(--pink);
 }
 
 .brand-title {
     font-size: 20px;
     font-weight: 750;
-    letter-spacing: -0.04em;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    letter-spacing: 0.06em;
     line-height: 1.15;
 }
 
@@ -444,7 +481,7 @@ input::placeholder {
 }
 
 .side-item.active {
-    border-color: var(--stroke);
+    border-color: rgb(117 229 240 / 38%);
     background: var(--surface-hover);
 }
 
@@ -474,7 +511,7 @@ button.linklike {
     height: 34px;
     border: 1px solid var(--stroke);
     border-radius: 11px;
-    background: linear-gradient(135deg, rgb(125 125 224 / 42%), rgb(69 164 165 / 33%));
+    background: linear-gradient(135deg, rgb(172 106 213 / 42%), rgb(69 164 165 / 33%));
     font-size: 14px;
     font-weight: 700;
 }

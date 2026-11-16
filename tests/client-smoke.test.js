@@ -21,6 +21,7 @@ describe('собранный веб-клиент', () => {
         expect(css).toContain('backdrop-filter: blur(');
         expect(css).toContain('@media (max-width: 700px)');
         expect(css).toContain('prefers-reduced-motion: reduce');
+        expect(css).toContain('background-size: 32px 32px');
     });
 
     it('запускает Vue и показывает форму входа', () => {
@@ -33,6 +34,7 @@ describe('собранный веб-клиент', () => {
         try {
             dom.window.eval(bundle);
             expect(dom.window.document.querySelector('#app .auth-box')).not.toBeNull();
+            expect(dom.window.document.querySelector('.auth-box h1').textContent).toBe('ALT');
             expect(dom.window.document.querySelector('.auth-box .primary').textContent).toBe(
                 'Войти',
             );
