@@ -1,15 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SyncState } from 'matrix-js-sdk';
 import {
-    resolveBaseUrl,
     makeSessionStore,
     validateSession,
     performLogin,
     isReadySyncState,
     registerWithUIA,
     buildRoomViews,
-    ALLOWED_HOMESERVERS,
-    DEFAULT_HOMESERVER,
+    HOMESERVER,
     SESSION_KEY,
 } from '../public/js/matrix-core.js';
 
@@ -32,28 +30,11 @@ const memStorage = () => {
     };
 };
 
-describe('resolveBaseUrl (P1-6)', () => {
-    it('берёт адрес из whitelist по ?hs=', () => {
-        const search = new URLSearchParams(`?hs=${ALLOWED_HOMESERVERS[0]}`);
-        const r = resolveBaseUrl({ search, storage: memStorage() });
-        expect(r.url).toBe(ALLOWED_HOMESERVERS[0]);
-        expect(r.needConfirm).toBe(false);
-    });
-
-    it('чужой адрес из ?hs= не принимается без подтверждения', () => {
-        const search = new URLSearchParams('?hs=https://evil.example');
-        const r = resolveBaseUrl({ search, storage: memStorage() });
-        expect(r.url).toBe(DEFAULT_HOMESERVER);
-        expect(r.needConfirm).toBe(true);
-        expect(r.foreign).toBe('https://evil.example');
-    });
-});
-
 describe('session store (P0-1, P1-9)', () => {
     it('сохраняет токен/иды и НЕ сохраняет пароль', () => {
         const st = memStorage();
         const store = makeSessionStore(st);
-        store.save('https://hs', 'tok', '@u:hs', 'DEV');
+        store.save('tok', '@u:hs', 'DEV');
         const loaded = store.load();
         expect(loaded.accessToken).toBe('tok');
         expect(loaded.userId).toBe('@u:hs');
@@ -64,7 +45,7 @@ describe('session store (P0-1, P1-9)', () => {
     it('clear удаляет сессию', () => {
         const st = memStorage();
         const store = makeSessionStore(st);
-        store.save('https://hs', 'tok', '@u:hs', 'DEV');
+        store.save('tok', '@u:hs', 'DEV');
         store.clear();
         expect(store.load()).toBe(null);
         expect(st.getItem(SESSION_KEY)).toBe(null);
@@ -83,11 +64,7 @@ describe('performLogin (P0-1 блокирующий дефект)', () => {
             })),
             credentials: { access_token: undefined }, // ловушка: раньше брали отсюда
         };
-        await performLogin(
-            client,
-            { baseUrl: 'https://hs/', username: ' a ', password: 'p' },
-            store,
-        );
+        await performLogin(client, { username: ' a ', password: 'p' }, store);
         expect(client.loginWithPassword).toHaveBeenCalledWith('a', 'p');
         expect(store.load().accessToken).toBe('REAL');
     });
@@ -96,23 +73,20 @@ describe('performLogin (P0-1 блокирующий дефект)', () => {
 describe('validateSession (P0-2)', () => {
     it('200 → valid', async () => {
         const fetchImpl = vi.fn(async () => ({ ok: true, status: 200 }));
-        expect(await validateSession(fetchImpl, { baseUrl: 'https://hs', accessToken: 't' })).toBe(
-            'valid',
-        );
+        expect(await validateSession(fetchImpl, { accessToken: 't' })).toBe('valid');
+        expect(fetchImpl).toHaveBeenCalledWith(HOMESERVER + '/_matrix/client/v3/account/whoami', {
+            headers: { Authorization: 'Bearer t' },
+        });
     });
     it('401 → invalid', async () => {
         const fetchImpl = vi.fn(async () => ({ ok: false, status: 401 }));
-        expect(await validateSession(fetchImpl, { baseUrl: 'https://hs', accessToken: 't' })).toBe(
-            'invalid',
-        );
+        expect(await validateSession(fetchImpl, { accessToken: 't' })).toBe('invalid');
     });
     it('throw сети → network (сессия сохраняется)', async () => {
         const fetchImpl = vi.fn(async () => {
             throw new TypeError('net');
         });
-        expect(await validateSession(fetchImpl, { baseUrl: 'https://hs', accessToken: 't' })).toBe(
-            'network',
-        );
+        expect(await validateSession(fetchImpl, { accessToken: 't' })).toBe('network');
     });
 });
 
@@ -144,7 +118,6 @@ describe('registerWithUIA (P0-3)', () => {
             },
         ]);
         const data = await registerWithUIA(fetchImpl, {
-            baseUrl: 'https://hs',
             username: 'u',
             password: 'p',
             token: 'CODE',
@@ -180,7 +153,6 @@ describe('registerWithUIA (P0-3)', () => {
         ]);
         await expect(
             registerWithUIA(fetchImpl, {
-                baseUrl: 'https://hs',
                 username: 'u',
                 password: 'p',
                 token: 'BAD',
@@ -209,7 +181,6 @@ describe('registerWithUIA (P0-3)', () => {
         ]);
         await expect(
             registerWithUIA(fetchImpl, {
-                baseUrl: 'https://hs',
                 username: 'u',
                 password: 'p',
                 token: 'EXPIRED',
@@ -238,7 +209,6 @@ describe('registerWithUIA (P0-3)', () => {
         ]);
         await expect(
             registerWithUIA(first, {
-                baseUrl: 'https://hs',
                 username: 'u',
                 password: 'p',
                 token: 'BAD',
@@ -261,7 +231,6 @@ describe('registerWithUIA (P0-3)', () => {
             },
         ]);
         const data = await registerWithUIA(second, {
-            baseUrl: 'https://hs',
             username: 'u',
             password: 'p',
             token: 'GOOD',
