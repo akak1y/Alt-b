@@ -1,6 +1,8 @@
 const path = require('node:path');
 const express = require('express');
 
+// Сервер Alt раздаёт готовые файлы из public/; вход и переписка выполняются
+// в браузере напрямую через Synapse. Этот файл НЕ хранит учётные записи.
 const app = express();
 
 // Сохраняем ограничения браузера: клиент обращается к Synapse напрямую.
@@ -12,6 +14,8 @@ const ALLOWED_CONNECT = [
 ];
 const ALLOWED_SCRIPT = ["'self'"];
 
+// На каждый ответ накладываем ограничения браузера: свои скрипты/шрифты,
+// соединение только с разрешёнными адресами и запрет встраивания в iframe.
 app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
@@ -30,8 +34,11 @@ app.use((req, res, next) => {
     next();
 });
 
+// Отдаём index.html, стили, изображения и собранный public/js/alt.js.
 app.use(express.static(path.join(__dirname, 'public')));
+// Если файла нет, возвращаем 404 вместо страницы клиента.
 app.use((req, res) => res.status(404).send('Not found'));
 
+// PORT задаёт порт запуска; без него используется 3000 (обычно за Caddy).
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Alt client at http://localhost:${port}`));

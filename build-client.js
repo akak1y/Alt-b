@@ -4,6 +4,8 @@ const { JSDOM } = require('jsdom');
 const { compile } = require('@vue/compiler-dom');
 const esbuild = require('esbuild');
 
+// Эта программа выполняется при npm run build, а не в браузере.
+// Из разметки #app заранее собираем шаблон Vue: браузеру не нужен компилятор.
 const html = fs.readFileSync(path.join(__dirname, 'public/index.html'), 'utf8');
 const dom = new JSDOM(html);
 const template = dom.window.document.querySelector('#app').innerHTML;
@@ -11,6 +13,8 @@ dom.window.close();
 
 const compiled = compile(template, { mode: 'module', prefixIdentifiers: true });
 
+// Объединяем app.js, matrix-client.js и Matrix SDK в public/js/alt.js.
+// Этот файл генерируется заново и не хранится в Git — редактируйте исходники.
 esbuild
     .build({
         entryPoints: [path.join(__dirname, 'public/js/app.js')],
@@ -29,6 +33,8 @@ esbuild
             {
                 name: 'alt-template',
                 setup(build) {
+                    // Псевдомодуль alt-template в app.js получает уже
+                    // подготовленный код шаблона, а не отдельный файл.
                     build.onResolve({ filter: /^alt-template$/ }, () => ({
                         path: 'alt-template',
                         namespace: 'alt-template',

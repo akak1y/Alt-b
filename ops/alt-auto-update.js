@@ -1,11 +1,16 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 
+// Это служебная программа VM, а НЕ часть браузерного клиента.
+// Её запускает systemd-таймер от имени alt-deploy; вручную при разработке
+// выполнять не нужно. Основные файлы конфигурации службы лежат рядом в ops/.
 const directory = '/opt/alt';
 const deployedVersionFile = '/var/lib/alt-deploy/deployed-sha';
 const workflowRunsUrl =
     'https://api.github.com/repos/akak1y/Alt-b/actions/workflows/check-main.yml/runs';
 
+// Выполняет команду и возвращает её текстовый результат (например, SHA Git).
+// При ошибке процесса execFileSync выбросит исключение и остановит обновление.
 function command(binary, args) {
     return execFileSync(binary, args, {
         cwd: directory,
@@ -15,6 +20,7 @@ function command(binary, args) {
     }).trim();
 }
 
+// Выполняет команду с выводом в журнал службы: так видны fetch, npm и тесты.
 function run(binary, args) {
     execFileSync(binary, args, {
         cwd: directory,
@@ -23,10 +29,18 @@ function run(binary, args) {
     });
 }
 
+// Короткий способ запускать читающие команды Git внутри /opt/alt.
 function git(...args) {
     return command('/usr/bin/git', args);
 }
 
+/**
+ * Сверяет ТОЧНЫЙ коммит main с завершённым успешным запуском проверки GitHub.
+ * Ветка, событие push и SHA проверяются вместе: чужая ветка либо успех
+ * другого коммита не разрешают менять сайт. Пока проверка идёт или GitHub
+ * не опубликовал её результат, возвращаем false и ждём следующего таймера.
+ * fetchImpl позволяет проверять это правило без обращения к GitHub в тестах.
+ */
 async function checkGithub(version, fetchImpl = fetch) {
     const url = new URL(workflowRunsUrl);
     url.searchParams.set('branch', 'main');
@@ -63,6 +77,11 @@ async function checkGithub(version, fetchImpl = fetch) {
     return true;
 }
 
+/**
+ * После перезапуска проверяет страницу по HTTPS и наличие собранного клиента.
+ * Короткие повторные попытки нужны потому, что процесс сервера запускается
+ * не мгновенно. Только успешная проверка позволяет пометить версию установленной.
+ */
 async function checkSite(
     fetchImpl = fetch,
     wait = () => new Promise((done) => setTimeout(done, 1000)),
@@ -81,6 +100,13 @@ async function checkSite(
     throw new Error('После обновления сайт не прошёл проверку по HTTPS.');
 }
 
+/**
+ * Один цикл обновления сайта. При локальных правках в /opt/alt прекращает
+ * работу, забирает только main и требует его успешной проверки на GitHub.
+ * Затем устанавливает зависимости, повторяет проверки на VM, перезапускает
+ * службу и подтверждает ответ сайта. Файл deployed-sha обновляется последним.
+ * Важно: автоматического отката после ошибки нет — причина видна в журнале.
+ */
 async function main() {
     if (git('status', '--porcelain')) {
         throw new Error('В /opt/alt есть несохранённые изменения; обновление остановлено.');
