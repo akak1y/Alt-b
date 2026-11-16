@@ -41,7 +41,6 @@ export function isReadySyncState(syncState) {
 
 export async function registerWithUIA(fetchImpl, { username, password, token }) {
     const url = HOMESERVER + '/_matrix/client/v3/register';
-    const submitted = new Set();
     let body = { username: String(username).trim(), password };
 
     for (let i = 0; i < 10; i += 1) {
@@ -59,26 +58,36 @@ export async function registerWithUIA(fetchImpl, { username, password, token }) 
         const flows = data.flows || [];
         if (!session) throw new Error(data.error || 'no session in 401');
 
-        const stages = new Set();
-        flows.forEach((f) => (f.stages || []).forEach((s) => stages.add(s)));
+        // В Matrix flows описывает все шаги; выполненные шаги перечислены отдельно в completed.
+        const completed = new Set(data.completed || []);
+        const supported = new Set(['m.login.registration_token', 'm.login.dummy']);
+        const supportedFlows = flows.filter((item) =>
+            (item.stages || []).every((stage) => supported.has(stage)),
+        );
+        const flow =
+            (token &&
+                supportedFlows.find((item) =>
+                    item.stages.includes('m.login.registration_token'),
+                )) ||
+            supportedFlows[0];
+        if (!flow) throw new Error(data.error || 'unsupported registration stages');
 
-        const lastSubmitted = [...submitted].pop();
-        if (lastSubmitted && stages.has(lastSubmitted)) {
-            throw new Error('invalid or expired registration token');
+        const lastSubmitted = body.auth?.type;
+        if (lastSubmitted && !completed.has(lastSubmitted)) {
+            throw new Error(
+                data.error ||
+                    (lastSubmitted === 'm.login.registration_token'
+                        ? 'invalid or expired registration token'
+                        : 'registration step was not accepted'),
+            );
         }
 
-        let next = null;
-        if (
-            stages.has('m.login.registration_token') &&
-            !submitted.has('m.login.registration_token')
-        ) {
-            next = { type: 'm.login.registration_token', token: String(token || '').trim() };
-        } else if (stages.has('m.login.dummy') && !submitted.has('m.login.dummy')) {
-            next = { type: 'm.login.dummy' };
-        }
-        if (!next) throw new Error(`unsupported auth stages: ${[...stages].join(', ')}`);
-
-        submitted.add(next.type);
+        const nextStage = (flow.stages || []).find((stage) => !completed.has(stage));
+        if (!nextStage) throw new Error(data.error || 'registration did not complete');
+        const next =
+            nextStage === 'm.login.registration_token'
+                ? { type: nextStage, token: String(token || '').trim() }
+                : { type: nextStage };
         body = { username: String(username).trim(), password, auth: { ...next, session } };
     }
     throw new Error('registration flow exceeded max attempts');

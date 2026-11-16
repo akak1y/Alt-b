@@ -1,7 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
-import { HOMESERVER } from './matrix-core.js';
 
 createApp({
     render,
@@ -12,11 +11,19 @@ createApp({
         });
         onUnmounted(unsub);
 
-        const homeserver = ref(HOMESERVER);
         const username = ref('');
         const password = ref('');
-        const token = ref('');
-        const mode = ref('login');
+        const inviteUrl = new URL(window.location.href);
+        const invitation =
+            inviteUrl.searchParams.get('registration_token') || inviteUrl.searchParams.get('token');
+        const token = ref(invitation || '');
+        const mode = ref(invitation ? 'register' : 'login');
+        if (invitation) {
+            inviteUrl.searchParams.delete('registration_token');
+            inviteUrl.searchParams.delete('token');
+            // Не оставляем код приглашения в адресной строке и истории браузера.
+            window.history.replaceState(null, '', inviteUrl);
+        }
         const busy = ref(false);
         const err = ref('');
         const draft = ref('');
@@ -141,7 +148,6 @@ createApp({
 
         return {
             s,
-            homeserver,
             username,
             password,
             token,
