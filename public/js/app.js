@@ -2,21 +2,30 @@ import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } fro
 import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
 
+// Входная точка интерфейса: Vue связывает шаблон public/index.html с действиями
+// из matrix-client.js. Здесь хранятся значения полей и видимые ошибки, но нет
+// прямых запросов к Synapse — их выполняет клиент Matrix.
 createApp({
     render,
     setup() {
+        // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
+        // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
         const unsub = mc.subscribe((v) => {
             s.value = v;
         });
         onUnmounted(unsub);
 
+        // Поля входа и регистрации разделены: введённый пароль не переносится
+        // из одной формы в другую.
         const username = ref('');
         const password = ref('');
         const registerUsername = ref('');
         const registerPassword = ref('');
         const logoFailed = ref(false);
         const inviteUrl = new URL(window.location.href);
+        // Ссылка с регистрационным кодом заранее заполняет поле регистрации.
+        // Это код регистрации пользователя, а не приглашение в комнату.
         const invitation =
             inviteUrl.searchParams.get('registration_token') || inviteUrl.searchParams.get('token');
         const token = ref(invitation || '');
@@ -36,12 +45,15 @@ createApp({
         const newRoomPublic = ref(false);
         const inviteTarget = ref('');
 
+        // Состояние комнат приходит из matrix-client.js. Эти списки только
+        // готовят данные для шаблона, не изменяя комнаты на сервере.
         const active = computed(
             () => s.value.rooms.find((r) => r.roomId === s.value.activeRoomId) || null,
         );
         const joined = computed(() => s.value.rooms.filter((r) => r.membership === 'join'));
         const invited = computed(() => s.value.rooms.filter((r) => r.membership === 'invite'));
 
+        // Перевод технического состояния соединения в короткую подпись.
         const connLabel = computed(
             () =>
                 ({
@@ -52,6 +64,8 @@ createApp({
                 })[s.value.connection] || s.value.connection,
         );
 
+        // После появления нового сообщения прокручиваем видимую переписку вниз.
+        // nextTick ждёт, пока Vue добавит сообщение в HTML.
         watch(
             () => active.value?.messages.length,
             () => {
@@ -62,6 +76,13 @@ createApp({
             },
         );
 
+        /**
+         * Запускает вход или регистрацию по нажатию соответствующей кнопки.
+         * kind = 'login' берёт поля входа; kind = 'register' берёт отдельные
+         * поля регистрации и код из ссылки/формы. Пока запрос выполняется,
+         * busy запрещает повторную отправку; ошибка показывается в шаблоне.
+         * Работа с сессией и Synapse находится в matrix-client.js.
+         */
         async function doAuth(kind) {
             if (busy.value) return;
             busy.value = true;
@@ -83,9 +104,12 @@ createApp({
             }
         }
 
+        // Два обработчика нужны двум отдельным формам в public/index.html.
+        // Они вызывают общую логику с разным набором полей.
         const doLogin = () => doAuth('login');
         const doRegister = () => doAuth('register');
 
+        // Очищает видимые поля после выхода; сохранённую сессию удаляет mc.logout.
         function logout() {
             mc.logout();
             username.value = '';
@@ -95,16 +119,20 @@ createApp({
             token.value = '';
             err.value = '';
         }
+        // Выбор комнаты меняет только открытую переписку в интерфейсе.
         function select(r) {
             mc.selectRoom(r.roomId);
         }
+        // Принятие приглашения в комнату отправляется на Synapse через SDK.
         function join(r) {
             mc.joinRoom(r.roomId);
         }
+        // Просит предыдущие события только для выбранной комнаты.
         function loadOlder() {
             if (active.value) mc.loadOlder(active.value.roomId);
         }
 
+        /** Отправляет непустой текст в открытую комнату и очищает поле после успеха. */
         async function send() {
             const t = draft.value.trim();
             if (!t || !active.value) return;
@@ -116,6 +144,7 @@ createApp({
             }
         }
 
+        /** Создаёт комнату по имени и признаку «публичная» из формы слева. */
         async function doCreateRoom() {
             const name = newRoomName.value.trim();
             if (!name) return;
@@ -129,6 +158,7 @@ createApp({
             }
         }
 
+        /** Приглашает Matrix-пользователя в открытую комнату по его полному ID. */
         async function doInvite() {
             const id = inviteTarget.value.trim();
             if (!id || !active.value) return;
@@ -140,8 +170,11 @@ createApp({
             }
         }
 
+        // Дата события в миллисекундах отображается по настройкам браузера.
         const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '');
 
+        // При первом открытии страницы пробуем восстановить сохранённый вход.
+        // При отсутствии сессии остаётся экран авторизации.
         onMounted(async () => {
             await mc.restoreSession();
             nextTick(() => {
@@ -149,6 +182,7 @@ createApp({
             });
         });
 
+        // Только возвращённые значения доступны выражениям в public/index.html.
         return {
             s,
             username,
