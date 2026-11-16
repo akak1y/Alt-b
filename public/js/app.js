@@ -13,11 +13,13 @@ createApp({
 
         const username = ref('');
         const password = ref('');
+        const registerUsername = ref('');
+        const registerPassword = ref('');
+        const logoFailed = ref(false);
         const inviteUrl = new URL(window.location.href);
         const invitation =
             inviteUrl.searchParams.get('registration_token') || inviteUrl.searchParams.get('token');
         const token = ref(invitation || '');
-        const mode = ref(invitation ? 'register' : 'login');
         if (invitation) {
             inviteUrl.searchParams.delete('registration_token');
             inviteUrl.searchParams.delete('token');
@@ -50,11 +52,6 @@ createApp({
                 })[s.value.connection] || s.value.connection,
         );
 
-        const authButtonLabel = computed(() => {
-            if (busy.value) return '…';
-            return mode.value === 'login' ? 'Войти' : 'Зарегистрироваться';
-        });
-
         watch(
             () => active.value?.messages.length,
             () => {
@@ -65,16 +62,17 @@ createApp({
             },
         );
 
-        async function doAuth() {
+        async function doAuth(kind) {
+            if (busy.value) return;
             busy.value = true;
             err.value = '';
             try {
-                if (mode.value === 'login') {
+                if (kind === 'login') {
                     await mc.login({ username: username.value, password: password.value });
                 } else {
                     await mc.register({
-                        username: username.value,
-                        password: password.value,
+                        username: registerUsername.value,
+                        password: registerPassword.value,
                         token: token.value,
                     });
                 }
@@ -85,10 +83,15 @@ createApp({
             }
         }
 
+        const doLogin = () => doAuth('login');
+        const doRegister = () => doAuth('register');
+
         function logout() {
             mc.logout();
             username.value = '';
             password.value = '';
+            registerUsername.value = '';
+            registerPassword.value = '';
             token.value = '';
             err.value = '';
         }
@@ -150,8 +153,10 @@ createApp({
             s,
             username,
             password,
+            registerUsername,
+            registerPassword,
+            logoFailed,
             token,
-            mode,
             busy,
             err,
             draft,
@@ -164,8 +169,8 @@ createApp({
             joined,
             invited,
             connLabel,
-            authButtonLabel,
-            doAuth,
+            doLogin,
+            doRegister,
             logout,
             select,
             join,

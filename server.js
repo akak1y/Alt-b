@@ -20,6 +20,7 @@ app.use((req, res, next) => {
             `script-src ${ALLOWED_SCRIPT.join(' ')}`,
             `connect-src ${ALLOWED_CONNECT.join(' ')}`,
             "style-src 'self' 'unsafe-inline'",
+            "font-src 'self'",
             "img-src 'self' data:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
