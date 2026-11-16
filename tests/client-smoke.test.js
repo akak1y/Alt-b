@@ -17,6 +17,12 @@ describe('собранный веб-клиент', () => {
                 'Войти',
             );
             expect(dom.window.document.querySelector('.auth-box .err')).toBeNull();
+            expect(dom.window.document.querySelector('.auth-box').tagName).toBe('FORM');
+            expect(dom.window.document.querySelector('.auth-box .primary').type).toBe('submit');
+            expect(
+                dom.window.document.querySelectorAll('.auth-box .tabs button[type="button"]'),
+            ).toHaveLength(2);
+            expect(dom.window.document.querySelector('label[for="auth-password"]')).not.toBeNull();
             expect(dom.window.document.querySelector('.auth-box').textContent).not.toContain(
                 'Сервер:',
             );
@@ -38,9 +44,7 @@ describe('собранный веб-клиент', () => {
             expect(dom.window.document.querySelector('.auth-box .primary').textContent).toBe(
                 'Зарегистрироваться',
             );
-            expect(
-                dom.window.document.querySelector('input[placeholder="registration token"]').value,
-            ).toBe('CODE');
+            expect(dom.window.document.querySelector('#auth-token').value).toBe('CODE');
             expect(dom.window.location.search).toBe('?other=1');
         } finally {
             dom.window.close();

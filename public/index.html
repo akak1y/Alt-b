@@ -8,30 +8,58 @@
     </head>
     <body>
         <div id="app">
-            <div v-if="s.phase === 'idle'" class="auth-box">
-                <h1>Alt</h1>
-                <div class="tabs">
-                    <button :class="{ on: mode === 'login' }" @click="mode = 'login'">Вход</button>
-                    <button :class="{ on: mode === 'register' }" @click="mode = 'register'">
-                        Регистрация
+            <div v-if="s.phase === 'idle'" class="auth-screen">
+                <form class="auth-box" @submit.prevent="doAuth">
+                    <h1>Alt</h1>
+                    <div class="tabs">
+                        <button
+                            type="button"
+                            :class="{ on: mode === 'login' }"
+                            @click="mode = 'login'"
+                        >
+                            Вход
+                        </button>
+                        <button
+                            type="button"
+                            :class="{ on: mode === 'register' }"
+                            @click="mode = 'register'"
+                        >
+                            Регистрация
+                        </button>
+                    </div>
+
+                    <label for="auth-username">Логин</label>
+                    <input
+                        id="auth-username"
+                        v-model="username"
+                        placeholder="Логин"
+                        autocomplete="username"
+                    />
+
+                    <label for="auth-password">Пароль</label>
+                    <input
+                        id="auth-password"
+                        v-model="password"
+                        type="password"
+                        placeholder="Пароль"
+                        :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
+                    />
+
+                    <template v-if="mode === 'register'">
+                        <label for="auth-token">Код приглашения</label>
+                        <input
+                            id="auth-token"
+                            v-model="token"
+                            placeholder="Код приглашения"
+                            autocomplete="off"
+                        />
+                    </template>
+
+                    <button type="submit" class="primary" :disabled="busy">
+                        {{ authButtonLabel }}
                     </button>
-                </div>
-
-                <label>Логин</label>
-                <input v-model="username" placeholder="username" autocomplete="off" />
-
-                <label>Пароль</label>
-                <input v-model="password" type="password" placeholder="password" />
-
-                <template v-if="mode === 'register'">
-                    <label>Токен приглашения</label>
-                    <input v-model="token" placeholder="registration token" autocomplete="off" />
-                </template>
-
-                <button class="primary" :disabled="busy" @click="doAuth">
-                    {{ authButtonLabel }}
-                </button>
-                <div v-if="err" class="err">{{ err }}</div>
+                    <div v-if="err" class="err" role="alert">{{ err }}</div>
+                </form>
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">
