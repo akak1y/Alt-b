@@ -44,6 +44,120 @@ body {
     background: var(--bg-main);
 }
 
+/* ---------- Авторизация ---------- */
+.auth-screen {
+    display: grid;
+    min-height: 100vh;
+    min-height: 100dvh;
+    place-items: center;
+    padding: 24px 16px;
+}
+
+.auth-box {
+    width: min(100%, 400px);
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--bg-side);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 20%);
+}
+
+:root[data-theme='light'] .auth-box {
+    --bg-side: #f3f5ff;
+    --bg-item: #d9e2ff;
+    --bg-msg: #fff;
+    --border: #8fa7e0;
+    --text: #1c1941;
+    --text-dim: #4b5599;
+}
+
+.auth-box h1 {
+    margin-bottom: 24px;
+    font-size: 32px;
+    text-align: center;
+}
+
+.auth-box .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-bottom: 20px;
+    padding: 4px;
+    border-radius: var(--radius);
+    background: var(--bg-item);
+}
+
+.auth-box .tabs button {
+    padding: 10px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.auth-box .tabs button.on {
+    background: var(--accent);
+    font-weight: 700;
+}
+
+.auth-box label {
+    display: block;
+    margin: 14px 0 6px;
+    font-weight: 600;
+}
+
+.auth-box input {
+    display: block;
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-msg);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+}
+
+.auth-box input::placeholder {
+    color: var(--text-dim);
+}
+
+.auth-box :is(input, button):focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+}
+
+.auth-box .primary {
+    width: 100%;
+    margin-top: 22px;
+    padding: 11px;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.auth-box .primary:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.auth-box .err {
+    margin-top: 12px;
+    color: #ffb9b9;
+    overflow-wrap: anywhere;
+}
+
+:root[data-theme='light'] .auth-box .err {
+    color: #a32640;
+}
+
 /* ---------- Layout ---------- */
 .app {
     display: grid;

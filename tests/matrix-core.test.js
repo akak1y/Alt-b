@@ -96,7 +96,7 @@ describe('registerWithUIA (P0-3)', () => {
         return vi.fn(async () => responses[i++]);
     };
 
-    it('полный flow: token → dummy → 200', async () => {
+    it('полный процесс: код → подтверждение → успешная регистрация', async () => {
         const fetchImpl = mk([
             {
                 ok: false,
@@ -109,7 +109,11 @@ describe('registerWithUIA (P0-3)', () => {
             {
                 ok: false,
                 status: 401,
-                json: async () => ({ session: 'S', flows: [{ stages: ['m.login.dummy'] }] }),
+                json: async () => ({
+                    session: 'S',
+                    flows: [{ stages: ['m.login.registration_token', 'm.login.dummy'] }],
+                    completed: ['m.login.registration_token'],
+                }),
             },
             {
                 ok: true,
@@ -132,7 +136,80 @@ describe('registerWithUIA (P0-3)', () => {
         expect(bodies[2].auth).toEqual({ type: 'm.login.dummy', session: 'S' });
     });
 
-    it('неверный код: стадия остаётся в flows → ошибка, а не «следующий шаг»', async () => {
+    it('не отправляет подтверждение, пока код приглашения не принят', async () => {
+        const fetchImpl = mk([
+            {
+                ok: false,
+                status: 401,
+                json: async () => ({
+                    session: 'S',
+                    flows: [{ stages: ['m.login.registration_token', 'm.login.dummy'] }],
+                }),
+            },
+            {
+                ok: false,
+                status: 401,
+                json: async () => ({
+                    session: 'S',
+                    flows: [{ stages: ['m.login.registration_token', 'm.login.dummy'] }],
+                    completed: [],
+                }),
+            },
+        ]);
+        await expect(
+            registerWithUIA(fetchImpl, { username: 'u', password: 'p', token: 'BAD' }),
+        ).rejects.toThrow(/invalid or expired registration token/);
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('выбирает регистрацию с кодом, если сервер предлагает несколько способов', async () => {
+        const fetchImpl = mk([
+            {
+                ok: false,
+                status: 401,
+                json: async () => ({
+                    session: 'S',
+                    flows: [
+                        { stages: ['m.login.dummy'] },
+                        { stages: ['m.login.registration_token', 'm.login.dummy'] },
+                    ],
+                }),
+            },
+            {
+                ok: true,
+                status: 200,
+                json: async () => ({ access_token: 'T', user_id: '@u:h', device_id: 'D' }),
+            },
+        ]);
+        await registerWithUIA(fetchImpl, { username: 'u', password: 'p', token: 'CODE' });
+        expect(JSON.parse(fetchImpl.mock.calls[1][1].body).auth.type).toBe(
+            'm.login.registration_token',
+        );
+    });
+
+    it('не принимает незавершённую регистрацию за успешную', async () => {
+        const fetchImpl = mk([
+            {
+                ok: false,
+                status: 401,
+                json: async () => ({ session: 'S', flows: [{ stages: ['m.login.dummy'] }] }),
+            },
+            {
+                ok: false,
+                status: 401,
+                json: async () => ({
+                    session: 'S',
+                    flows: [{ stages: ['m.login.dummy'] }],
+                    completed: ['m.login.dummy'],
+                }),
+            },
+        ]);
+        await expect(registerWithUIA(fetchImpl, { username: 'u', password: 'p' })).rejects.toThrow(
+            /registration did not complete/,
+        );
+    });
+
+    it('неверный код: шаг не входит в completed → ошибка, а не «следующий шаг»', async () => {
         const fetchImpl = mk([
             {
                 ok: false,
@@ -160,7 +237,7 @@ describe('registerWithUIA (P0-3)', () => {
         ).rejects.toThrow(/invalid or expired registration token/);
     });
 
-    it('истёкший код обрабатывается как invalid (та же стадия в flows)', async () => {
+    it('истёкший код обрабатывается как invalid (шаг отсутствует в completed)', async () => {
         const fetchImpl = mk([
             {
                 ok: false,
