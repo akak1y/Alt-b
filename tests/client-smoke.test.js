@@ -7,21 +7,24 @@ describe('собранный веб-клиент', () => {
         const css = readFileSync('public/css/style.css', 'utf8');
         for (const selector of [
             '.auth-box',
-            '.layout',
+            '.chat-app',
             '.sidebar',
-            '.side-item',
-            '.channel-header',
-            '.messages',
-            '.bubble',
-            '.input-row',
+            '.channel-item',
+            '.chat-header',
+            '.messages-area',
+            '.message.sent',
+            '.message.received',
+            '.chat-input-area',
             '.invite-row',
+            '.assistant-panel',
+            '.section-toggle',
         ]) {
             expect(css).toContain(selector);
         }
         expect(css).toContain('backdrop-filter: blur(');
         expect(css).toContain('@media (max-width: 700px)');
         expect(css).toContain('prefers-reduced-motion: reduce');
-        expect(css).toContain('background-size: 32px 32px');
+        expect(css).toContain('background-size: 28px 28px');
         expect(css).toContain("url('/fonts/share-tech-mono.ttf')");
         expect(statSync('public/fonts/share-tech-mono.ttf').size).toBeGreaterThan(0);
         expect(statSync('public/assets/alt-logo.png').size).toBeGreaterThan(0);

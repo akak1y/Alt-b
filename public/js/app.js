@@ -45,6 +45,23 @@ createApp({
         const newRoomPublic = ref(false);
         const inviteTarget = ref('');
 
+        // Панель помощника: открыта ли, переписка, набор ответа и поле ввода.
+        const assistantOpen = ref(false);
+        const assistantDraft = ref('');
+        const assistantTyping = ref(false);
+        const assistantBox = ref(null);
+        let assistantSeq = 0;
+        const nowTime = () => new Date().toLocaleTimeString();
+        const assistantMessages = ref([
+            {
+                id: ++assistantSeq,
+                from: 'bot',
+                text: 'Привет! Я помощник Alt. Выберите команду или напишите вопрос:',
+                commands: ['Как создать комнату?', 'Как пригласить друга?', 'Что такое E2EE?'],
+                time: nowTime(),
+            },
+        ]);
+
         // Состояние комнат приходит из matrix-client.js. Эти списки только
         // готовят данные для шаблона, не изменяя комнаты на сервере.
         const active = computed(
@@ -64,6 +81,9 @@ createApp({
                 })[s.value.connection] || s.value.connection,
         );
 
+        // Сворачивание списка комнат в сайдбаре.
+        const roomsCollapsed = ref(false);
+
         // После появления нового сообщения прокручиваем видимую переписку вниз.
         // nextTick ждёт, пока Vue добавит сообщение в HTML.
         watch(
@@ -72,6 +92,17 @@ createApp({
                 nextTick(() => {
                     if (messagesBox.value)
                         messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
+                });
+            },
+        );
+
+        // Переписка помощника тоже прокручивается к последнему сообщению.
+        watch(
+            () => assistantMessages.value.length + (assistantTyping.value ? 1 : 0),
+            () => {
+                nextTick(() => {
+                    if (assistantBox.value)
+                        assistantBox.value.scrollTop = assistantBox.value.scrollHeight;
                 });
             },
         );
@@ -170,6 +201,48 @@ createApp({
             }
         }
 
+        // Простые ответы помощника по ключевым словам; работают локально,
+        // без обращения к серверу — это подсказки по интерфейсу Alt.
+        function assistantAnswer(text) {
+            const t = text.toLowerCase();
+            if (t.includes('комнат') && (t.includes('создат') || t.includes('нов')))
+                return 'Нажмите «＋ Новая комната» в списке слева, введите название и при желании отметьте «публичная», затем «Создать».';
+            if (t.includes('приглас') || t.includes('друг'))
+                return 'Откройте комнату, в строке под полем ввода укажите полный ID вида @user:example.org и нажмите «Пригласить».';
+            if (t.includes('e2ee') || t.includes('шифр'))
+                return 'E2EE — сквозное шифрование. Alt пока его не поддерживает: такие комнаты помечены 🔒, переписка в них недоступна.';
+            if (t.includes('истор'))
+                return 'Кнопка «История» в шапке чата подгружает более старые сообщения открытой комнаты.';
+            if (t.includes('выход') || t.includes('выйти'))
+                return 'Кнопка выхода находится внизу сайдбара, рядом с вашим именем.';
+            return 'Пока я умею отвечать про интерфейс Alt. Спросите про комнаты, приглашения, шифрование или историю.';
+        }
+
+        /** Добавляет реплику пользователя и ответ помощника с короткой задержкой. */
+        function askAssistant(text) {
+            const q = (text || '').trim();
+            if (!q || assistantTyping.value) return;
+            assistantMessages.value.push({
+                id: ++assistantSeq,
+                from: 'user',
+                text: q,
+                time: nowTime(),
+            });
+            assistantDraft.value = '';
+            assistantTyping.value = true;
+            setTimeout(() => {
+                assistantTyping.value = false;
+                assistantMessages.value.push({
+                    id: ++assistantSeq,
+                    from: 'bot',
+                    text: assistantAnswer(q),
+                    time: nowTime(),
+                });
+            }, 700);
+        }
+
+        const sendAssistant = () => askAssistant(assistantDraft.value);
+
         // Дата события в миллисекундах отображается по настройкам браузера.
         const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '');
 
@@ -199,6 +272,14 @@ createApp({
             newRoomName,
             newRoomPublic,
             inviteTarget,
+            roomsCollapsed,
+            assistantOpen,
+            assistantDraft,
+            assistantTyping,
+            assistantBox,
+            assistantMessages,
+            askAssistant,
+            sendAssistant,
             active,
             joined,
             invited,
