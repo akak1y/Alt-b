@@ -1,119 +1,140 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Alt test client (matrix-js-sdk)</title>
-        <link rel="stylesheet" href="/css/style.css" />
-        <!-- Vue остаётся глобальным classic-скриптом; app.js — module, грузится после -->
-        <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    </head>
-    <body>
-        <div id="app">
-            <!-- ЭКРАН АВТОРИЗАЦИИ -->
-            <div v-if="s.phase === 'idle'" class="auth-box">
-                <h1>Alt</h1>
-                <div class="tabs">
-                    <button :class="{ on: mode === 'login' }" @click="mode = 'login'">Вход</button>
-                    <button :class="{ on: mode === 'register' }" @click="mode = 'register'">
-                        Регистрация
-                    </button>
-                </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alt test client (matrix-js-sdk)</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+  <div id="app">
 
-                <label>Homeserver (Synapse)</label>
-                <input v-model="baseUrl" placeholder="http://IP:8008" />
+    <!-- ЭКРАН АВТОРИЗАЦИИ -->
+    <div v-if="s.phase === 'idle'" class="auth-box">
+      <h1>Alt</h1>
 
-                <label>Логин</label>
-                <input v-model="username" placeholder="username" autocomplete="off" />
+      <div class="tabs">
+        <button :class="{ on: mode === 'login' }" @click="mode = 'login'">Вход</button>
+        <button :class="{ on: mode === 'register' }" @click="mode = 'register'">Регистрация</button>
+      </div>
 
-                <label>Пароль</label>
-                <input v-model="password" type="password" placeholder="password" />
+      <!-- FIX #1: homeserver редактируемый, дефолт из конфигурации -->
+      <label>Homeserver (Synapse)</label>
+      <input v-model="baseUrl" placeholder="https://synapse.creatusest.ru" @change="saveHs" />
 
-                <template v-if="mode === 'register'">
-                    <label>Токен приглашения (вводится пользователем)</label>
-                    <input v-model="token" placeholder="registration token" autocomplete="off" />
-                </template>
+      <label>Логин</label>
+      <input v-model="username" placeholder="username" autocomplete="off" />
 
-                <button class="primary" :disabled="busy" @click="doAuth">
-                    {{ busy ? '…' : (mode === 'login' ? 'Войти' : 'Зарегистрироваться') }}
-                </button>
-                <div v-if="err" class="err">{{ err }}</div>
-            </div>
+      <label>Пароль</label>
+      <input v-model="password" type="password" placeholder="password" />
 
-            <!-- СИНХРОНИЗАЦИЯ -->
-            <div v-else-if="s.phase === 'syncing'" class="center-note">
-                Подключение к Synapse, идёт initial sync… <span class="pill">{{ connLabel }}</span>
-            </div>
+      <template v-if="mode === 'register'">
+        <label>Токен приглашения</label>
+        <input v-model="token" placeholder="registration token" autocomplete="off" />
+      </template>
 
-            <!-- ОСНОВНОЙ ЭКРАН -->
-            <div v-else class="layout">
-                <aside class="sidebar">
-                    <div class="side-block">
-                        <div class="side-header">
-                            Комнаты <span class="pill">{{ connLabel }}</span>
-                        </div>
+      <button class="primary" :disabled="busy" @click="doAuth">
+        {{ busy ? '…' : (mode === 'login' ? 'Войти' : 'Зарегистрироваться') }}
+      </button>
+      <div v-if="err" class="err">{{ err }}</div>
+    </div>
 
-                        <div v-for="r in invited" :key="'i'+r.roomId" class="side-item invite">
-                            <span class="linklike">{{ r.name }} <em>(приглашение)</em></span>
-                            <button class="small" @click="join(r)">Принять</button>
-                        </div>
+    <!-- СИНХРОНИЗАЦИЯ -->
+    <div v-else-if="s.phase === 'syncing'" class="center-note">
+      Подключение к Synapse, initial sync… <span class="pill">{{ connLabel }}</span>
+    </div>
 
-                        <div
-                            v-for="r in joined"
-                            :key="r.roomId"
-                            class="side-item"
-                            :class="{ active: active && active.roomId === r.roomId }"
-                        >
-                            <button class="linklike" @click="select(r)"># {{ r.name }}</button>
-                        </div>
+    <!-- ОСНОВНОЙ ЭКРАН -->
+    <div v-else class="layout">
+      <aside class="sidebar">
+        <div class="side-block">
+          <div class="side-header">
+            Комнаты <span class="pill">{{ connLabel }}</span>
+          </div>
 
-                        <div v-if="joined.length === 0 && invited.length === 0" class="muted">
-                            Нет комнат. Создай комнату в Element — она появится здесь после sync.
-                        </div>
-                    </div>
+          <!-- приглашения -->
+          <div v-for="r in invited" :key="'i'+r.roomId" class="side-item invite">
+            <span class="linklike">{{ r.name }} <em>(приглашение)</em></span>
+            <button class="small" @click="join(r)">Принять</button>
+          </div>
 
-                    <div class="user-panel">
-                        <span class="whoami">{{ s.myName || s.myUserId }}</span>
-                        <button class="small" @click="logout">Logout</button>
-                    </div>
-                </aside>
+          <!-- joined комнаты -->
+          <div
+            v-for="r in joined"
+            :key="r.roomId"
+            class="side-item"
+            :class="{ active: active && active.roomId === r.roomId }"
+          >
+            <button class="linklike" @click="select(r)"># {{ r.name }}</button>
+          </div>
 
-                <main class="main">
-                    <div v-if="!active" class="empty">Выберите комнату слева</div>
+          <div v-if="joined.length === 0 && invited.length === 0" class="muted">
+            Нет комнат. Создайте или подождите приглашение.
+          </div>
 
-                    <template v-else>
-                        <div class="channel-header">
-                            # {{ active.name }}
-                            <button class="small right" @click="loadOlder">
-                                Загрузить историю
-                            </button>
-                        </div>
+          <!-- FIX #6: кнопка создания комнаты -->
+          <button class="small" @click="showCreate = !showCreate">+ Создать комнату</button>
 
-                        <div class="messages" ref="messagesBox">
-                            <div v-for="m in active.messages" :key="m.id" class="message">
-                                <div class="bubble">
-                                    <div class="bubble-head">
-                                        <b>{{ m.senderName }}</b
-                                        ><span class="meta">{{ fmt(m.ts) }}</span>
-                                    </div>
-                                    <div class="bubble-text">{{ m.body }}</div>
-                                </div>
-                            </div>
-                            <div v-if="active.messages.length === 0" class="muted center">
-                                Сообщений пока нет
-                            </div>
-                        </div>
-
-                        <form class="input-row" @submit.prevent="send">
-                            <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
-                            <button type="submit" class="primary">Send</button>
-                        </form>
-                        <div v-if="err" class="err inline">{{ err }}</div>
-                    </template>
-                </main>
-            </div>
+          <div v-if="showCreate" class="create-form">
+            <input v-model="newRoomName" placeholder="Название комнаты" @keyup.enter="doCreateRoom" />
+            <button class="small primary" @click="doCreateRoom">Создать</button>
+          </div>
         </div>
 
-        <script type="module" src="/js/app.js"></script>
-    </body>
+        <div class="user-panel">
+          <span class="whoami">{{ s.myName || s.myUserId }}</span>
+          <button class="small" @click="logout">Logout</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div v-if="!active" class="empty">Выберите комнату слева</div>
+
+        <template v-else>
+          <div class="channel-header">
+            <span># {{ active.name }}</span>
+            <span v-if="active.isEncrypted" class="enc-badge">🔒 зашифрована</span>
+            <button class="small right" @click="loadOlder">История</button>
+          </div>
+
+          <!-- FIX #4: баннер шифрования вместо пустого чата -->
+          <div v-if="active.isEncrypted" class="enc-banner">
+            Эта комната использует сквозное шифрование (E2EE).
+            Alt пока не поддерживает расшифровку — зашифрованные сообщения показаны как заглушки.
+            Для чтения используйте Element или дождитесь этапа E2EE.
+          </div>
+
+          <div class="messages" ref="messagesBox">
+            <div v-for="m in active.messages" :key="m.id" class="message">
+              <div class="bubble" :class="{ encrypted: m.encrypted }">
+                <div class="bubble-head">
+                  <b>{{ m.senderName }}</b>
+                  <span class="meta">{{ fmt(m.ts) }}</span>
+                </div>
+                <div class="bubble-text">{{ m.body }}</div>
+              </div>
+            </div>
+            <div v-if="active.messages.length === 0" class="muted center">Сообщений пока нет</div>
+          </div>
+
+          <form class="input-row" @submit.prevent="send">
+            <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
+            <button type="submit" class="primary">Send</button>
+          </form>
+
+          <!-- FIX #6: приглашение по Matrix ID -->
+          <div class="invite-row">
+            <input v-model="inviteTarget" placeholder="@user:synapse.creatusest.ru" autocomplete="off" />
+            <button class="small" @click="doInvite">Пригласить</button>
+          </div>
+
+          <div v-if="err" class="err inline">{{ err }}</div>
+        </template>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
 </html>

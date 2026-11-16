@@ -357,3 +357,75 @@ button {
     align-items: center;
     gap: 8px;
 }
+
+/* MR1 fixes: encryption, create room, invite, config */
+
+.enc-badge {
+  font-size: 11px;
+  background: #f5c842;
+  color: #333;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 8px;
+}
+
+.enc-banner {
+  background: #fff3cd;
+  border: 1px solid #f5c842;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 8px 14px;
+  font-size: 13px;
+  color: #664d03;
+}
+
+.bubble.encrypted {
+  background: #e8e0cc;
+  color: #664d03;
+  font-style: italic;
+}
+
+.create-form {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.create-form input {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #b0bccf;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.invite-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px 14px 8px;
+}
+
+.invite-row input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #b0bccf;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.primary {
+  background: #5b6d94;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 14px;
+}
+
+.primary:hover {
+  background: #6d7fa8;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
