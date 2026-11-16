@@ -58,6 +58,10 @@ router.post('/register', async (req, res) => {
     } catch (err) {
         if (err.matrix?.errcode === 'M_USER_IN_USE') {
             return res.status(409).json({ error: 'login already exists', code: 'CONFLICT' });
+        } else if (err.matrix?.errcode === 'M_FORBIDDEN') {
+            return res
+                .status(403)
+                .json({ error: 'registration denied or invalid token', code: 'FORBIDDEN' });
         }
 
         logger.error('register failed', err);

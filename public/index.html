@@ -3,132 +3,117 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Alt backend test</title>
+        <title>Alt test client (matrix-js-sdk)</title>
         <link rel="stylesheet" href="/css/style.css" />
+        <!-- Vue остаётся глобальным classic-скриптом; app.js — module, грузится после -->
+        <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     </head>
     <body>
         <div id="app">
-            <div v-if="!currentLogin" class="auth-box">
+            <!-- ЭКРАН АВТОРИЗАЦИИ -->
+            <div v-if="s.phase === 'idle'" class="auth-box">
                 <h1>Alt</h1>
-                <input v-model="login" placeholder="login" />
+                <div class="tabs">
+                    <button :class="{ on: mode === 'login' }" @click="mode = 'login'">Вход</button>
+                    <button :class="{ on: mode === 'register' }" @click="mode = 'register'">
+                        Регистрация
+                    </button>
+                </div>
+
+                <label>Homeserver (Synapse)</label>
+                <input v-model="baseUrl" placeholder="http://IP:8008" />
+
+                <label>Логин</label>
+                <input v-model="username" placeholder="username" autocomplete="off" />
+
+                <label>Пароль</label>
                 <input v-model="password" type="password" placeholder="password" />
-                <button @click="register">Register</button>
-                <button @click="loginUser">Login</button>
-                <div class="status">{{ status }}</div>
+
+                <template v-if="mode === 'register'">
+                    <label>Токен приглашения (вводится пользователем)</label>
+                    <input v-model="token" placeholder="registration token" autocomplete="off" />
+                </template>
+
+                <button class="primary" :disabled="busy" @click="doAuth">
+                    {{ busy ? '…' : (mode === 'login' ? 'Войти' : 'Зарегистрироваться') }}
+                </button>
+                <div v-if="err" class="err">{{ err }}</div>
             </div>
 
+            <!-- СИНХРОНИЗАЦИЯ -->
+            <div v-else-if="s.phase === 'syncing'" class="center-note">
+                Подключение к Synapse, идёт initial sync… <span class="pill">{{ connLabel }}</span>
+            </div>
+
+            <!-- ОСНОВНОЙ ЭКРАН -->
             <div v-else class="layout">
                 <aside class="sidebar">
                     <div class="side-block">
-                        <div class="side-header">Список серверов</div>
-                        <div
-                            v-for="s in spaces"
-                            :key="s.id"
-                            class="side-item"
-                            :class="{ active: s.id === currentSpaceId }"
-                        >
-                            <button class="linklike" @click="selectSpace(s)">{{ s.name }}</button>
-                            <button v-if="!s.isMember" class="small" @click="joinSpace(s)">
-                                Вступить
-                            </button>
+                        <div class="side-header">
+                            Комнаты <span class="pill">{{ connLabel }}</span>
                         </div>
-                        <button class="small" @click="createSpace">+ Создать сервер</button>
-                    </div>
 
-                    <div class="side-block chats">
-                        <div class="side-header">Чаты</div>
-                        <div
-                            v-for="c in channels"
-                            :key="c.id"
-                            class="side-item"
-                            :class="{ active: currentChannel && c.id === currentChannel.id }"
-                        >
-                            <button class="linklike" @click="selectChannel(c)">
-                                # {{ c.name }}
-                            </button>
+                        <div v-for="r in invited" :key="'i'+r.roomId" class="side-item invite">
+                            <span class="linklike">{{ r.name }} <em>(приглашение)</em></span>
+                            <button class="small" @click="join(r)">Принять</button>
                         </div>
-                        <button v-if="currentSpaceId" class="small" @click="createChannel">
-                            + Создать чат
-                        </button>
+
+                        <div
+                            v-for="r in joined"
+                            :key="r.roomId"
+                            class="side-item"
+                            :class="{ active: active && active.roomId === r.roomId }"
+                        >
+                            <button class="linklike" @click="select(r)"># {{ r.name }}</button>
+                        </div>
+
+                        <div v-if="joined.length === 0 && invited.length === 0" class="muted">
+                            Нет комнат. Создай комнату в Element — она появится здесь после sync.
+                        </div>
                     </div>
 
                     <div class="user-panel">
-                        <div class="avatar" :style="{ background: avatarColor(currentLogin) }">
-                            {{ avatarLetter(currentLogin) }}
-                        </div>
-                        <span class="whoami">{{ currentLogin }}</span>
-                        <button class="small" @click="openSettings">Настройки</button>
+                        <span class="whoami">{{ s.myName || s.myUserId }}</span>
                         <button class="small" @click="logout">Logout</button>
                     </div>
                 </aside>
 
                 <main class="main">
-                    <div v-if="!currentChannel" class="empty">
-                        Здесь как то пусто...<br />Выберите чат что бы начать общение
-                    </div>
+                    <div v-if="!active" class="empty">Выберите комнату слева</div>
 
                     <template v-else>
-                        <div class="channel-header"># {{ currentChannel.name }}</div>
+                        <div class="channel-header">
+                            # {{ active.name }}
+                            <button class="small right" @click="loadOlder">
+                                Загрузить историю
+                            </button>
+                        </div>
 
                         <div class="messages" ref="messagesBox">
-                            <div v-for="m in messages" :key="m.id" class="message">
-                                <div class="avatar" :style="{ background: avatarColor(m.login) }">
-                                    {{ avatarLetter(m.login) }}
-                                </div>
-                                <div class="bubble" :class="{ pending: m.pending }">
+                            <div v-for="m in active.messages" :key="m.id" class="message">
+                                <div class="bubble">
                                     <div class="bubble-head">
-                                        <b>{{ m.login }}</b>
-                                        <span class="meta">{{ formatTime(m.created_at) }}</span>
+                                        <b>{{ m.senderName }}</b
+                                        ><span class="meta">{{ fmt(m.ts) }}</span>
                                     </div>
-                                    <div class="bubble-text">{{ m.content }}</div>
+                                    <div class="bubble-text">{{ m.body }}</div>
                                 </div>
+                            </div>
+                            <div v-if="active.messages.length === 0" class="muted center">
+                                Сообщений пока нет
                             </div>
                         </div>
 
                         <form class="input-row" @submit.prevent="send">
-                            <input
-                                v-model="content"
-                                placeholder="Сообщение..."
-                                autocomplete="off"
-                            />
-                            <button type="submit">Send</button>
+                            <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
+                            <button type="submit" class="primary">Send</button>
                         </form>
+                        <div v-if="err" class="err inline">{{ err }}</div>
                     </template>
                 </main>
             </div>
-
-            <div v-if="showSettings" class="modal-back" @click.self="closeSettings">
-                <div class="modal">
-                    <h2>Настройки профиля</h2>
-
-                    <label>Отображаемое имя</label>
-                    <input v-model="profile.display_name" placeholder="имя" />
-
-                    <label>Email</label>
-                    <input v-model="profile.email" placeholder="email" />
-
-                    <label>Телефон</label>
-                    <input v-model="profile.phone" placeholder="телефон" />
-
-                    <button @click="saveProfile">Сохранить</button>
-                    <span class="status">{{ profileStatus }}</span>
-
-                    <h3>Смена пароля</h3>
-                    <input v-model="pw.old" type="password" placeholder="текущий пароль" />
-                    <input v-model="pw.new1" type="password" placeholder="новый пароль" />
-                    <input v-model="pw.new2" type="password" placeholder="повторите новый" />
-                    <button @click="changePassword">Изменить пароль</button>
-                    <span class="status">{{ pwStatus }}</span>
-
-                    <div class="modal-foot">
-                        <button @click="closeSettings">Закрыть</button>
-                    </div>
-                </div>
-            </div>
         </div>
 
-        <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-        <script src="/socket.io/socket.io.js"></script>
-        <script src="/js/app.js"></script>
+        <script type="module" src="/js/app.js"></script>
     </body>
 </html>
