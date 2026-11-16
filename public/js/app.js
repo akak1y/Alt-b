@@ -1,6 +1,7 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
+import { HOMESERVER } from './matrix-core.js';
 
 createApp({
     render,
@@ -11,11 +12,7 @@ createApp({
         });
         onUnmounted(unsub);
 
-        // P1-6: инициализация homeserver из whitelist/URL, флаг подтверждения
-        const init = mc.initBaseUrl(new URLSearchParams(window.location.search));
-        const baseUrl = ref(init.url);
-        const pendingForeign = ref(init.foreign || '');
-
+        const homeserver = ref(HOMESERVER);
         const username = ref('');
         const password = ref('');
         const token = ref('');
@@ -27,7 +24,7 @@ createApp({
 
         const showCreate = ref(false);
         const newRoomName = ref('');
-        const newRoomPublic = ref(false); // P1-7
+        const newRoomPublic = ref(false);
         const inviteTarget = ref('');
 
         const active = computed(
@@ -46,6 +43,11 @@ createApp({
                 })[s.value.connection] || s.value.connection,
         );
 
+        const authButtonLabel = computed(() => {
+            if (busy.value) return '…';
+            return mode.value === 'login' ? 'Войти' : 'Зарегистрироваться';
+        });
+
         watch(
             () => active.value?.messages.length,
             () => {
@@ -56,40 +58,14 @@ createApp({
             },
         );
 
-        function saveHs() {
-            const v = baseUrl.value.trim().replace(/\/+$/, '');
-            // P1-6: если юзер ввёл адрес вне whitelist — помечаем к подтверждению
-            if (!['https://synapse.creatusest.ru'].includes(v)) pendingForeign.value = v;
-            else {
-                pendingForeign.value = '';
-                mc.setBaseUrl(v);
-            }
-        }
-
         async function doAuth() {
-            // P1-6: явное подтверждение смены сервера ПЕРЕД отправкой логина/пароля
-            if (pendingForeign.value) {
-                const ok = window.confirm(
-                    `Вы подключаетесь к нерозрешённому homeserver: ${pendingForeign.value}\n` +
-                        'Логин и пароль будут отправлены туда. Продолжить?',
-                );
-                if (!ok) return;
-                mc.setBaseUrl(pendingForeign.value);
-                baseUrl.value = pendingForeign.value;
-                pendingForeign.value = '';
-            }
             busy.value = true;
             err.value = '';
             try {
                 if (mode.value === 'login') {
-                    await mc.login({
-                        baseUrl: baseUrl.value,
-                        username: username.value,
-                        password: password.value,
-                    });
+                    await mc.login({ username: username.value, password: password.value });
                 } else {
                     await mc.register({
-                        baseUrl: baseUrl.value,
                         username: username.value,
                         password: password.value,
                         token: token.value,
@@ -122,13 +98,11 @@ createApp({
         async function send() {
             const t = draft.value.trim();
             if (!t || !active.value) return;
-            // P1-8: НЕ чистим поле заранее — очистим только после успеха
             try {
                 await mc.sendText(active.value.roomId, t);
                 draft.value = '';
             } catch (e) {
                 err.value = e.message;
-                // черновик остаётся в поле
             }
         }
 
@@ -136,7 +110,7 @@ createApp({
             const name = newRoomName.value.trim();
             if (!name) return;
             try {
-                await mc.createRoom(name, newRoomPublic.value); // P1-7
+                await mc.createRoom(name, newRoomPublic.value);
                 newRoomName.value = '';
                 newRoomPublic.value = false;
                 showCreate.value = false;
@@ -158,10 +132,8 @@ createApp({
 
         const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '');
 
-        // P0-2/P0-3: восстановление сессии при загрузке
         onMounted(async () => {
-            const r = await mc.restoreSession();
-            if (r === 'restored' || r === 'network') baseUrl.value = mc.getState().baseUrl;
+            await mc.restoreSession();
             nextTick(() => {
                 if (messagesBox.value) messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
             });
@@ -169,7 +141,7 @@ createApp({
 
         return {
             s,
-            baseUrl,
+            homeserver,
             username,
             password,
             token,
@@ -182,12 +154,11 @@ createApp({
             newRoomName,
             newRoomPublic,
             inviteTarget,
-            pendingForeign,
             active,
             joined,
             invited,
             connLabel,
-            saveHs,
+            authButtonLabel,
             doAuth,
             logout,
             select,

@@ -1,11 +1,6 @@
-// Единственный слой, знающий про matrix-js-sdk. Вся чистая логика — в
-// matrix-core.js (тестируется без SDK). Браузерный код собирается из npm-зависимостей.
 import * as sdk from 'matrix-js-sdk';
 import {
-    SESSION_KEY,
-    HS_KEY,
-    DEFAULT_HOMESERVER,
-    resolveBaseUrl,
+    HOMESERVER,
     makeSessionStore,
     validateSession,
     performLogin,
@@ -25,7 +20,7 @@ const state = {
     activeRoomId: null,
     myUserId: '',
     myName: '',
-    baseUrl: DEFAULT_HOMESERVER,
+    baseUrl: HOMESERVER,
 };
 
 let client = null;
@@ -42,16 +37,7 @@ export const subscribe = (fn) => {
     return () => listeners.delete(fn);
 };
 export const getState = () => snapshot();
-
-export function initBaseUrl(search) {
-    const r = resolveBaseUrl({ search, storage: localStorage });
-    state.baseUrl = r.url;
-    return r; // needConfirm/foreign — UI спросит перед отправкой учётных данных
-}
-export function setBaseUrl(url) {
-    localStorage.setItem(HS_KEY, String(url).trim().replace(/\/+$/, ''));
-    state.baseUrl = String(url).trim().replace(/\/+$/, '');
-}
+export const getHomeserver = () => HOMESERVER;
 
 function refreshRooms() {
     if (!client) return;
@@ -71,14 +57,11 @@ function wire() {
             state.connection = 'syncing';
             if (state.phase !== 'ready') state.phase = 'syncing';
         } else if (syncState === sdk.SyncState.Error || syncState === sdk.SyncState.Reconnecting) {
-            // P0-2: временная ошибка sync — SDK сам ретраит с тем же since,
-            // сессию не теряем, показываем переподключение
             state.connection = 'reconnecting';
         }
         notify();
     });
 
-    // P1-5 realtime: новое событие в таймлайне комнаты → пересобираем только её
     client.on(sdk.RoomEvent.Timeline, (event, room, toStartOfTimeline) => {
         if (toStartOfTimeline || !room) return;
         refreshRooms();
@@ -103,14 +86,13 @@ function reset() {
     state.activeRoomId = null;
     state.myUserId = '';
     state.myName = '';
+    notify();
 }
 
-export async function login({ baseUrl, username, password }) {
+export async function login({ username, password }) {
     reset();
-    state.baseUrl = String(baseUrl).trim().replace(/\/+$/, '');
-    client = sdk.createClient({ baseUrl: state.baseUrl });
-    // P0-1: сохранение из ответа loginWithPassword (через core.performLogin)
-    await performLogin(client, { baseUrl: state.baseUrl, username, password }, store);
+    client = sdk.createClient({ baseUrl: HOMESERVER });
+    await performLogin(client, { username, password }, store);
     wire();
     state.phase = 'syncing';
     state.connection = 'syncing';
@@ -118,23 +100,16 @@ export async function login({ baseUrl, username, password }) {
     await client.startClient();
 }
 
-export async function register({ baseUrl, username, password, token }) {
+export async function register({ username, password, token }) {
     reset();
-    state.baseUrl = String(baseUrl).trim().replace(/\/+$/, '');
-    // P0-3: полный UIA-flow через core.registerWithUIA
-    const data = await registerWithUIA(fetch, {
-        baseUrl: state.baseUrl,
-        username,
-        password,
-        token,
-    });
+    const data = await registerWithUIA(fetch, { username, password, token });
     client = sdk.createClient({
-        baseUrl: state.baseUrl,
+        baseUrl: HOMESERVER,
         accessToken: data.access_token,
         userId: data.user_id,
         deviceId: data.device_id,
     });
-    store.save(state.baseUrl, data.access_token, data.user_id, data.device_id);
+    store.save(data.access_token, data.user_id, data.device_id);
     wire();
     state.phase = 'syncing';
     state.connection = 'syncing';
@@ -142,7 +117,6 @@ export async function register({ baseUrl, username, password, token }) {
     await client.startClient();
 }
 
-// P0-2: восстановление с различением invalid/network
 export async function restoreSession() {
     const saved = store.load();
     if (!saved) return 'none';
@@ -151,11 +125,9 @@ export async function restoreSession() {
     if (verdict === 'invalid') {
         store.clear();
         reset();
-        notify();
         return 'invalid';
     }
     if (verdict === 'network') {
-        state.baseUrl = saved.baseUrl;
         state.phase = 'idle';
         state.connection = 'reconnecting';
         state.error = 'нет сети, сессия сохранена — ждём восстановления';
@@ -164,9 +136,8 @@ export async function restoreSession() {
     }
 
     reset();
-    state.baseUrl = saved.baseUrl;
     client = sdk.createClient({
-        baseUrl: saved.baseUrl,
+        baseUrl: HOMESERVER,
         accessToken: saved.accessToken,
         userId: saved.userId,
         deviceId: saved.deviceId,
@@ -184,17 +155,16 @@ export async function logout() {
         try {
             await client.logout();
         } catch {
-            /* игнор */
+            /* ignore */
         }
         try {
             client.stopClient();
         } catch {
-            /* игнор */
+            /* ignore */
         }
     }
     store.clear();
     reset();
-    notify();
 }
 
 export function selectRoom(roomId) {
@@ -217,7 +187,6 @@ export async function sendText(roomId, text) {
     await client.sendTextMessage(roomId, text);
 }
 
-// P1-7: выбор приватности при создании комнаты
 export async function createRoom(name, isPublic = false) {
     if (!client) throw new Error('no client');
     const res = await client.createRoom({
@@ -231,5 +200,3 @@ export async function inviteUser(roomId, userId) {
     if (!client) throw new Error('no client');
     await client.invite(roomId, String(userId).trim());
 }
-
-void SESSION_KEY; // экспорт core используется в тестах, здесь не нужен напрямую

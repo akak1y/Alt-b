@@ -17,16 +17,7 @@
                     </button>
                 </div>
 
-                <label>Homeserver (Synapse)</label>
-                <input
-                    v-model="baseUrl"
-                    placeholder="https://synapse.creatusest.ru"
-                    @change="saveHs"
-                />
-                <!-- P1-6: предупреждение о нерозрешённом адресе до отправки учётных данных -->
-                <div v-if="pendingForeign" class="err">
-                    Адрес вне списка разрешённых. При отправке будет запрошено подтверждение.
-                </div>
+                <div class="hs-line">Сервер: {{ homeserver }}</div>
 
                 <label>Логин</label>
                 <input v-model="username" placeholder="username" autocomplete="off" />
@@ -40,7 +31,7 @@
                 </template>
 
                 <button class="primary" :disabled="busy" @click="doAuth">
-                    {{ busy ? '…' : (mode === 'login' ? 'Войти' : 'Зарегистрироваться') }}
+                    {{ authButtonLabel }}
                 </button>
                 <div v-if="err" class="err">{{ err }}</div>
             </div>
@@ -56,7 +47,7 @@
                             Комнаты <span class="pill">{{ connLabel }}</span>
                         </div>
 
-                        <div v-for="r in invited" :key="'i'+r.roomId" class="side-item invite">
+                        <div v-for="r in invited" :key="'i' + r.roomId" class="side-item invite">
                             <span class="linklike">{{ r.name }} <em>(приглашение)</em></span>
                             <button class="small" @click="join(r)">Принять</button>
                         </div>
@@ -127,7 +118,6 @@
                             </div>
                         </div>
 
-                        <!-- P1-4: форма отправки скрыта в E2EE-комнате -->
                         <form v-if="!active.isEncrypted" class="input-row" @submit.prevent="send">
                             <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
                             <button type="submit" class="primary">Send</button>

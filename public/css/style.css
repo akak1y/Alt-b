@@ -348,3 +348,13 @@ button {
     opacity: 0.6;
     cursor: default;
 }
+
+.hs-line {
+    font-size: 12px;
+    color: #7d8aa5;
+    background: #e7ecf6;
+    border-radius: 5px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    word-break: break-all;
+}
