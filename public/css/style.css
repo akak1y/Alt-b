@@ -1,9 +1,20 @@
+/*
+ * Карта стилей для шаблона public/index.html.
+ * 1. Шрифт, цвета, фон и общие кнопки — все экраны.
+ * 2. .auth-screen — вход и регистрация; .center-note — ожидание подключения.
+ * 3. .layout — рабочий клиент: .sidebar (комнаты) и .main (переписка).
+ * 4. В конце файла — изменения компоновки для узких экранов и без анимации.
+ * Правьте базовый вид в его разделе, а поведение на телефоне — в @media внизу.
+ * Исходный дизайнерский черновик не используется работающим клиентом.
+ */
+
 @font-face {
     font-family: 'Share Tech Mono';
     src: url('/fonts/share-tech-mono.ttf') format('truetype');
     font-display: swap;
 }
 
+/* Общие цвета и размеры для всего приложения; светлая палитра ниже. */
 :root {
     color-scheme: dark;
     font-family: 'Share Tech Mono', 'DejaVu Sans Mono', monospace;
@@ -104,6 +115,7 @@ body::after {
     }
 }
 
+/* Общие элементы управления: кнопки, фокус и метки состояния. */
 button,
 input {
     font: inherit;
@@ -181,7 +193,11 @@ button:disabled {
     content: '';
 }
 
-/* Экран авторизации повторяет композицию макета, но формы остаются рабочими. */
+/*
+ * Экран входа: .auth-screen в public/index.html.
+ * Декор (.auth-grid, .auth-skull, .auth-rail) не принимает нажатия.
+ * .auth-box и .auth-register — отдельные рабочие формы Matrix.
+ */
 .auth-screen {
     position: relative;
     min-height: 100vh;
@@ -479,6 +495,7 @@ button:disabled {
     color: var(--text);
 }
 
+/* Общие поля создания комнаты и отправки/приглашения в рабочем клиенте. */
 .create-form input:not([type='checkbox']),
 .input-row input,
 .invite-row input {
@@ -505,6 +522,7 @@ input::placeholder {
     color: #9e2842;
 }
 
+/* Экран ожидания восстановления сессии и первого подключения. */
 .center-note {
     display: grid;
     min-height: 100vh;
@@ -534,7 +552,7 @@ input::placeholder {
     }
 }
 
-/* Общая оболочка: две стеклянные панели поверх фона. */
+/* .layout в public/index.html: общая оболочка с двумя панелями. */
 .layout {
     display: grid;
     grid-template-columns: minmax(240px, 290px) minmax(0, 1fr);
@@ -559,6 +577,7 @@ input::placeholder {
     backdrop-filter: blur(20px);
 }
 
+/* .sidebar: название ALT, список комнат, приглашения и профиль. */
 .sidebar {
     display: flex;
     flex-direction: column;
@@ -774,7 +793,7 @@ button.linklike {
     font-size: 11px;
 }
 
-/* Переписка: шапка, сообщения и поле отправки. */
+/* .main: пустой экран, шапка комнаты, сообщения, отправка и приглашения. */
 .main {
     display: flex;
     flex-direction: column;
@@ -963,6 +982,7 @@ button.linklike {
     background: var(--surface);
 }
 
+/* Компактный экран входа: убираем боковой декор, оставляем формы видимыми. */
 @media (max-width: 950px) {
     .auth-rail,
     .auth-visualizer {
@@ -979,6 +999,7 @@ button.linklike {
     }
 }
 
+/* Узкий экран входа: формы располагаются в одну колонку и могут прокручиваться. */
 @media (max-width: 650px) {
     .auth-logo-wrapper {
         width: min(85vw, 360px);
@@ -1020,6 +1041,7 @@ button.linklike {
     }
 }
 
+/* Узкий экран переписки: список комнат становится компактной боковой полосой. */
 @media (max-width: 700px) {
     .layout {
         grid-template-columns: 78px minmax(0, 1fr);
@@ -1115,6 +1137,7 @@ button.linklike {
     }
 }
 
+/* Очень узкий экран переписки: сокращаем подписи в шапке и кнопках. */
 @media (max-width: 420px) {
     .enc-badge {
         font-size: 0;
@@ -1131,6 +1154,7 @@ button.linklike {
     }
 }
 
+/* Учитываем системное пожелание отключить движение декоративных элементов. */
 @media (prefers-reduced-motion: reduce) {
     body::before,
     .loading-mark,

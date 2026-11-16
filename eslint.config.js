@@ -10,7 +10,6 @@ module.exports = [
             'matrix/',
             'synapse-data/',
             'public/js/alt.js',
-            'project/',
         ],
     },
     js.configs.recommended,
