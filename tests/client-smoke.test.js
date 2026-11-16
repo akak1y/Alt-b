@@ -3,6 +3,26 @@ import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
 
 describe('собранный веб-клиент', () => {
+    it('оформляет существующие части интерфейса и узкие экраны', () => {
+        const css = readFileSync('public/css/style.css', 'utf8');
+        for (const selector of [
+            '.auth-box',
+            '.layout',
+            '.sidebar',
+            '.side-item',
+            '.channel-header',
+            '.messages',
+            '.bubble',
+            '.input-row',
+            '.invite-row',
+        ]) {
+            expect(css).toContain(selector);
+        }
+        expect(css).toContain('backdrop-filter: blur(');
+        expect(css).toContain('@media (max-width: 700px)');
+        expect(css).toContain('prefers-reduced-motion: reduce');
+    });
+
     it('запускает Vue и показывает форму входа', () => {
         const html = readFileSync('public/index.html', 'utf8');
         const bundle = readFileSync('public/js/alt.js', 'utf8');

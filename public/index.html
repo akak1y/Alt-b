@@ -3,14 +3,16 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Alt test client (matrix-js-sdk)</title>
+        <title>Alt — общение без лишнего</title>
         <link rel="stylesheet" href="/css/style.css" />
     </head>
     <body>
         <div id="app">
             <div v-if="s.phase === 'idle'" class="auth-screen">
                 <form class="auth-box" @submit.prevent="doAuth">
+                    <span class="auth-symbol" aria-hidden="true">✦</span>
                     <h1>Alt</h1>
+                    <p class="auth-description">Место для ваших разговоров</p>
                     <div class="tabs">
                         <button
                             type="button"
@@ -63,36 +65,29 @@
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">
-                Подключение к Synapse, initial sync… <span class="pill">{{ connLabel }}</span>
+                <span class="loading-mark" aria-hidden="true">✦</span>
+                <span>Подключаем ваши комнаты…</span>
+                <span class="pill">{{ connLabel }}</span>
             </div>
 
             <div v-else class="layout">
                 <aside class="sidebar">
+                    <div class="brand">
+                        <span class="brand-symbol" aria-hidden="true">✦</span>
+                        <span class="brand-title">Alt <small>ваше пространство</small></span>
+                    </div>
                     <div class="side-block">
                         <div class="side-header">
-                            Комнаты <span class="pill">{{ connLabel }}</span>
+                            <span>Комнаты</span> <span class="pill">{{ connLabel }}</span>
                         </div>
 
-                        <div v-for="r in invited" :key="'i' + r.roomId" class="side-item invite">
-                            <span class="linklike">{{ r.name }} <em>(приглашение)</em></span>
-                            <button class="small" @click="join(r)">Принять</button>
-                        </div>
-
-                        <div
-                            v-for="r in joined"
-                            :key="r.roomId"
-                            class="side-item"
-                            :class="{ active: active && active.roomId === r.roomId }"
+                        <button
+                            class="small create-button"
+                            @click="showCreate = !showCreate"
+                            aria-label="Создать комнату"
                         >
-                            <button class="linklike" @click="select(r)"># {{ r.name }}</button>
-                        </div>
-
-                        <div v-if="joined.length === 0 && invited.length === 0" class="muted">
-                            Нет комнат. Создайте комнату или дождитесь приглашения.
-                        </div>
-
-                        <button class="small" @click="showCreate = !showCreate">
-                            + Создать комнату
+                            <span aria-hidden="true">＋</span
+                            ><span class="create-label">Новая комната</span>
                         </button>
                         <div v-if="showCreate" class="create-form">
                             <input
@@ -105,20 +100,65 @@
                             >
                             <button class="small primary" @click="doCreateRoom">Создать</button>
                         </div>
+
+                        <div v-for="r in invited" :key="'i' + r.roomId" class="side-item invite">
+                            <span class="linklike" :title="r.name">
+                                <span class="room-avatar" aria-hidden="true"
+                                    >{{ r.name.slice(0, 1).toUpperCase() }}</span
+                                >
+                                <span class="room-name">{{ r.name }} <em>Приглашение</em></span>
+                            </span>
+                            <button
+                                class="small"
+                                :aria-label="'Принять приглашение в ' + r.name"
+                                @click="join(r)"
+                            >
+                                Принять
+                            </button>
+                        </div>
+
+                        <div
+                            v-for="r in joined"
+                            :key="r.roomId"
+                            class="side-item"
+                            :class="{ active: active && active.roomId === r.roomId }"
+                        >
+                            <button class="linklike" :title="r.name" @click="select(r)">
+                                <span class="room-avatar" aria-hidden="true"
+                                    >{{ r.name.slice(0, 1).toUpperCase() }}</span
+                                >
+                                <span class="room-name">{{ r.name }}</span>
+                            </button>
+                        </div>
+
+                        <div v-if="joined.length === 0 && invited.length === 0" class="muted">
+                            Нет комнат. Создайте комнату или дождитесь приглашения.
+                        </div>
                     </div>
 
                     <div class="user-panel">
-                        <span class="whoami">{{ s.myName || s.myUserId }}</span>
+                        <span class="user-avatar" aria-hidden="true"
+                            >{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span
+                        >
+                        <span class="whoami" :title="s.myName || s.myUserId"
+                            >{{ s.myName || s.myUserId }}</span
+                        >
                         <button class="small" @click="logout">Выйти</button>
                     </div>
                 </aside>
 
                 <main class="main">
-                    <div v-if="!active" class="empty">Выберите комнату слева</div>
+                    <div v-if="!active" class="empty">
+                        <span class="empty-icon" aria-hidden="true">✦</span>
+                        <h2>Здесь начинается разговор</h2>
+                        <p>Выберите комнату слева или создайте новую.</p>
+                    </div>
 
                     <template v-else>
                         <div class="channel-header">
-                            <span># {{ active.name }}</span>
+                            <span class="channel-name" :title="active.name"
+                                ># {{ active.name }}</span
+                            >
                             <span v-if="active.isEncrypted" class="enc-badge">🔒 зашифрована</span>
                             <button class="small right" @click="loadOlder">История</button>
                         </div>
@@ -146,7 +186,7 @@
 
                         <form v-if="!active.isEncrypted" class="input-row" @submit.prevent="send">
                             <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
-                            <button type="submit" class="primary">Send</button>
+                            <button type="submit" class="primary">Отправить</button>
                         </form>
 
                         <div v-if="!active.isEncrypted" class="invite-row">
