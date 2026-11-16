@@ -5,3 +5,12 @@ logs/
 dist/
 coverage/
 .DS_Store
+
+matrix/data/
+
+homeserver.yaml
+synapse-data/
+media/
+uploads/
+signing.key
+*.db

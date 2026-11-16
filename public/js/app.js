@@ -16,7 +16,14 @@ createApp({
         const currentChannel = ref(null);
         const messagesBox = ref(null);
 
+        const showSettings = ref(false);
+        const profile = ref({ display_name: '', email: '', phone: '' });
+        const profileStatus = ref('');
+        const pw = ref({ old: '', new1: '', new2: '' });
+        const pwStatus = ref('');
+
         let socket = null;
+        let pendingSeq = 0;
 
         const getToken = () => localStorage.getItem('token');
 
@@ -164,16 +171,38 @@ createApp({
                 return;
             }
 
+            // optimistic UI: показываем сразу, до подтверждения сервера
+            const tmpId = 'tmp-' + ++pendingSeq;
+            messages.value.push({
+                id: tmpId,
+                content: text,
+                created_at: new Date(),
+                login: currentLogin.value,
+                pending: true,
+            });
+            scrollDown();
+            content.value = '';
+
             socket.emit(
                 'message:create',
                 { channelId: currentChannel.value.id, content: text },
                 (response) => {
                     if (response?.error) {
+                        const i = messages.value.findIndex((m) => m.id === tmpId);
+                        if (i >= 0) {
+                            messages.value.splice(i, 1);
+                        }
                         alert(response.error);
                         return;
                     }
 
-                    content.value = '';
+                    if (response?.eventId) {
+                        const m = messages.value.find((x) => x.id === tmpId);
+                        if (m) {
+                            m.id = response.eventId;
+                            m.pending = false;
+                        }
+                    }
                 },
             );
         };
@@ -193,12 +222,79 @@ createApp({
                 status.value = `Socket error: ${err.message}`;
             });
 
-            socket.on('message:created', (message) => {
-                if (currentChannel.value && message.channel_id === currentChannel.value.id) {
-                    messages.value.push(message);
-                    scrollDown();
+            socket.on('message:created', (msg) => {
+                if (!currentChannel.value || msg.channel_id !== currentChannel.value.id) {
+                    return;
                 }
+
+                // убираем optimistic-дубли того же автора и текста
+                messages.value = messages.value.filter(
+                    (m) => !(m.pending && m.login === msg.login && m.content === msg.content),
+                );
+
+                if (!messages.value.some((m) => m.id === msg.id)) {
+                    messages.value.push(msg);
+                }
+
+                scrollDown();
             });
+        };
+
+        const openSettings = async () => {
+            showSettings.value = true;
+            profileStatus.value = '';
+            pwStatus.value = '';
+
+            try {
+                profile.value = await api('/api/profile');
+            } catch {
+                profileStatus.value = 'не удалось загрузить профиль';
+            }
+        };
+
+        const closeSettings = () => {
+            showSettings.value = false;
+        };
+
+        const saveProfile = async () => {
+            profileStatus.value = 'сохраняю...';
+
+            try {
+                profile.value = await api('/api/profile', {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        display_name: profile.value.display_name,
+                        email: profile.value.email,
+                        phone: profile.value.phone,
+                    }),
+                });
+                profileStatus.value = 'сохранено';
+            } catch (err) {
+                profileStatus.value = err.message || 'ошибка';
+            }
+        };
+
+        const changePassword = async () => {
+            pwStatus.value = '';
+
+            if (pw.value.new1 !== pw.value.new2) {
+                pwStatus.value = 'пароли не совпадают';
+                return;
+            }
+
+            try {
+                await api('/api/profile/password', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        old_password: pw.value.old,
+                        new_password: pw.value.new1,
+                    }),
+                });
+                pwStatus.value = 'пароль изменён';
+                pw.value = { old: '', new1: '', new2: '' };
+            } catch (err) {
+                pwStatus.value = err.message || 'ошибка';
+            }
         };
 
         const register = async () => {
@@ -285,6 +381,11 @@ createApp({
             currentSpaceId,
             currentChannel,
             messagesBox,
+            showSettings,
+            profile,
+            profileStatus,
+            pw,
+            pwStatus,
             register,
             loginUser,
             logout,
@@ -297,6 +398,10 @@ createApp({
             formatTime,
             avatarColor,
             avatarLetter,
+            openSettings,
+            closeSettings,
+            saveProfile,
+            changePassword,
         };
     },
 }).mount('#app');

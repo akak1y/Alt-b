@@ -57,6 +57,7 @@
                             {{ avatarLetter(currentLogin) }}
                         </div>
                         <span class="whoami">{{ currentLogin }}</span>
+                        <button class="small" @click="openSettings">Настройки</button>
                         <button class="small" @click="logout">Logout</button>
                     </div>
                 </aside>
@@ -74,7 +75,7 @@
                                 <div class="avatar" :style="{ background: avatarColor(m.login) }">
                                     {{ avatarLetter(m.login) }}
                                 </div>
-                                <div class="bubble">
+                                <div class="bubble" :class="{ pending: m.pending }">
                                     <div class="bubble-head">
                                         <b>{{ m.login }}</b>
                                         <span class="meta">{{ formatTime(m.created_at) }}</span>
@@ -94,6 +95,35 @@
                         </form>
                     </template>
                 </main>
+            </div>
+
+            <div v-if="showSettings" class="modal-back" @click.self="closeSettings">
+                <div class="modal">
+                    <h2>Настройки профиля</h2>
+
+                    <label>Отображаемое имя</label>
+                    <input v-model="profile.display_name" placeholder="имя" />
+
+                    <label>Email</label>
+                    <input v-model="profile.email" placeholder="email" />
+
+                    <label>Телефон</label>
+                    <input v-model="profile.phone" placeholder="телефон" />
+
+                    <button @click="saveProfile">Сохранить</button>
+                    <span class="status">{{ profileStatus }}</span>
+
+                    <h3>Смена пароля</h3>
+                    <input v-model="pw.old" type="password" placeholder="текущий пароль" />
+                    <input v-model="pw.new1" type="password" placeholder="новый пароль" />
+                    <input v-model="pw.new2" type="password" placeholder="повторите новый" />
+                    <button @click="changePassword">Изменить пароль</button>
+                    <span class="status">{{ pwStatus }}</span>
+
+                    <div class="modal-foot">
+                        <button @click="closeSettings">Закрыть</button>
+                    </div>
+                </div>
             </div>
         </div>
 

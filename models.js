@@ -6,7 +6,11 @@ const User = sequelize.define(
     {
         id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
         login: { type: DataTypes.STRING(32), allowNull: false, unique: true },
-        password_hash: { type: DataTypes.STRING(255), allowNull: false },
+        matrix_user_id: { type: DataTypes.STRING(128), allowNull: false },
+        matrix_token: { type: DataTypes.TEXT, allowNull: false },
+        // чёрный ящик настроек: тема, фильтры, макросы, анимации, email, phone
+        // и любой будущий кастом. бэк хранит и отдаёт как есть, не цензорит.
+        settings: { type: DataTypes.JSON, allowNull: false, defaultValue: {} },
     },
     {
         tableName: 'users',
@@ -21,16 +25,33 @@ const User = sequelize.define(
 const Space = sequelize.define(
     'space',
     {
-        id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+        room_id: { type: DataTypes.STRING(128), primaryKey: true },
         name: { type: DataTypes.STRING(64), allowNull: false },
-        owner_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: { model: 'users', key: 'id' },
-        },
+        owner_id: { type: DataTypes.INTEGER, allowNull: false },
+        // кастом сервера: цвета, логотип, правила — что захочет владелец.
+        settings: { type: DataTypes.JSON, allowNull: false, defaultValue: {} },
     },
     {
         tableName: 'spaces',
+        timestamps: true,
+        createdAt: 'created_at',
+        updatedAt: false,
+        charset: 'utf8mb4',
+        collate: 'utf8mb4_unicode_ci',
+    },
+);
+
+const Channel = sequelize.define(
+    'channel',
+    {
+        room_id: { type: DataTypes.STRING(128), primaryKey: true },
+        space_room_id: { type: DataTypes.STRING(128), allowNull: false },
+        name: { type: DataTypes.STRING(64), allowNull: false },
+        // кастом рума/канала.
+        settings: { type: DataTypes.JSON, allowNull: false, defaultValue: {} },
+    },
+    {
+        tableName: 'channels',
         timestamps: true,
         createdAt: 'created_at',
         updatedAt: false,
@@ -43,16 +64,8 @@ const SpaceMember = sequelize.define(
     'space_member',
     {
         id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-        space_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: { model: 'spaces', key: 'id' },
-        },
-        user_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: { model: 'users', key: 'id' },
-        },
+        space_room_id: { type: DataTypes.STRING(128), allowNull: false },
+        user_id: { type: DataTypes.INTEGER, allowNull: false },
         role: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'member' },
     },
     {
@@ -60,69 +73,8 @@ const SpaceMember = sequelize.define(
         timestamps: false,
         charset: 'utf8mb4',
         collate: 'utf8mb4_unicode_ci',
-        indexes: [{ unique: true, fields: ['space_id', 'user_id'] }],
+        indexes: [{ unique: true, fields: ['space_room_id', 'user_id'] }],
     },
 );
 
-const Channel = sequelize.define(
-    'channel',
-    {
-        id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-        space_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: { model: 'spaces', key: 'id' },
-        },
-        name: { type: DataTypes.STRING(64), allowNull: false },
-        type: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'text' },
-    },
-    {
-        tableName: 'channels',
-        timestamps: true,
-        createdAt: 'created_at',
-        updatedAt: false,
-        charset: 'utf8mb4',
-        collate: 'utf8mb4_unicode_ci',
-    },
-);
-
-const Message = sequelize.define(
-    'message',
-    {
-        id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-        user_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: { model: 'users', key: 'id' },
-        },
-        channel_id: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: { model: 'channels', key: 'id' },
-        },
-        content: { type: DataTypes.TEXT, allowNull: false },
-    },
-    {
-        tableName: 'messages',
-        timestamps: true,
-        createdAt: 'created_at',
-        updatedAt: false,
-        charset: 'utf8mb4',
-        collate: 'utf8mb4_unicode_ci',
-    },
-);
-
-User.hasMany(Message, { foreignKey: 'user_id' });
-Message.belongsTo(User, { foreignKey: 'user_id' });
-
-Space.hasMany(Channel, { foreignKey: 'space_id' });
-Channel.belongsTo(Space, { foreignKey: 'space_id' });
-
-Space.hasMany(SpaceMember, { foreignKey: 'space_id' });
-SpaceMember.belongsTo(Space, { foreignKey: 'space_id' });
-SpaceMember.belongsTo(User, { foreignKey: 'user_id' });
-
-Channel.hasMany(Message, { foreignKey: 'channel_id' });
-Message.belongsTo(Channel, { foreignKey: 'channel_id' });
-
-module.exports = { User, Space, SpaceMember, Channel, Message };
+module.exports = { User, Space, Channel, SpaceMember };
