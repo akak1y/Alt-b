@@ -14,13 +14,14 @@ describe('собранный веб-клиент', () => {
         expect(authCss).toContain('.auth-box');
         expect(readFileSync('public/index.html', 'utf8')).toContain('/css/auth-matrix.css');
         for (const selector of [
-            '.layout',
+            '.chat-app',
             '.sidebar',
-            '.side-item',
-            '.channel-header',
-            '.messages',
-            '.bubble',
-            '.input-row',
+            '.channel-item',
+            '.chat-header',
+            '.messages-area',
+            '.message.sent',
+            '.message.received',
+            '.chat-input-area',
             '.invite-row',
         ]) {
             expect(css).toContain(selector);

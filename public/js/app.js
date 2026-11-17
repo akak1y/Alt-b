@@ -43,6 +43,7 @@ createApp({
         const messagesBox = ref(null);
 
         const showCreate = ref(false);
+        const roomsCollapsed = ref(false);
         const newRoomName = ref('');
         const newRoomPublic = ref(false);
         const newRoomEncrypted = ref(false);
@@ -126,6 +127,10 @@ createApp({
         // Выбор комнаты меняет только открытую переписку в интерфейсе.
         function select(r) {
             mc.selectRoom(r.roomId);
+        }
+        function backToRooms() {
+            roomsCollapsed.value = false;
+            mc.selectRoom(null);
         }
         // Принятие приглашения в комнату отправляется на Synapse через SDK.
         function join(r) {
@@ -211,6 +216,7 @@ createApp({
             draft,
             messagesBox,
             showCreate,
+            roomsCollapsed,
             newRoomName,
             newRoomPublic,
             newRoomEncrypted,
@@ -223,6 +229,7 @@ createApp({
             doRegister,
             logout,
             select,
+            backToRooms,
             join,
             loadOlder,
             send,
