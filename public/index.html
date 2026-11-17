@@ -584,7 +584,11 @@
                             <input type="checkbox" v-model="appearance.anim" />
                         </label>
                     </section>
-                    <nav class="settings-section settings-links" aria-label="Информация об Alt">
+                    <nav
+                        v-if="s.phase === 'ready'"
+                        class="settings-section settings-links"
+                        aria-label="Информация об Alt"
+                    >
                         <button type="button" class="small" @click="settingsPage = 'about'">
                             О проекте
                         </button>
