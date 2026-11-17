@@ -81,9 +81,10 @@ body.bg-light {
 
 .auth-logo-wrapper {
     z-index: 2;
-    top: 16px;
+    top: clamp(16px, 2vw, 24px);
     left: clamp(16px, 3vw, 42px);
     filter: var(--logo-shadow);
+    transform: rotate(-5deg);
 }
 
 .auth-logo {
