@@ -123,6 +123,13 @@
                             <span aria-hidden="true">＋</span
                             ><span class="create-label">Новая комната</span>
                         </button>
+                        <button
+                            class="small registration-invite-button"
+                            @click="openInvitations"
+                            title="Пригласить пользователя"
+                        >
+                            Пригласить пользователя
+                        </button>
                         <div v-if="showCreate" class="create-form">
                             <input
                                 v-model="newRoomName"
@@ -235,6 +242,126 @@
                         <div v-if="err" class="err inline">{{ err }}</div>
                     </template>
                 </main>
+            </div>
+            <div v-if="invitationsOpen" class="invitation-overlay" @click.self="closeInvitations">
+                <section
+                    class="invitation-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="invitations-title"
+                    @keydown="invitationKeys"
+                    :aria-busy="invitationsBusy"
+                >
+                    <header class="invitation-header">
+                        <h2 id="invitations-title">Пригласить пользователя</h2>
+                        <button ref="invitationClose" class="small" @click="closeInvitations">
+                            Закрыть
+                        </button>
+                    </header>
+                    <p>
+                        Регистрация новых пользователей Alt. Доступ предоставляется администратором.
+                    </p>
+                    <form class="invitation-create" @submit.prevent="createInvitation">
+                        <label
+                            >Срок действия
+                            <select v-model.number="invitationHours" :disabled="invitationsBusy">
+                                <option :value="1">1 час</option>
+                                <option :value="24">24 часа</option>
+                                <option :value="168">7 дней</option>
+                            </select>
+                        </label>
+                        <label
+                            >Количество регистраций
+                            <select v-model.number="invitationUses" :disabled="invitationsBusy">
+                                <option :value="1">1</option>
+                                <option :value="5">5</option>
+                            </select>
+                        </label>
+                        <button class="primary" :disabled="invitationsBusy">
+                            Создать приглашение
+                        </button>
+                    </form>
+                    <div v-if="createdInvitation" class="invitation-created">
+                        <strong
+                            >Новое приглашение · {{ invitationStatusLabel(createdInvitation)
+                            }}</strong
+                        >
+                        <div class="invitation-link">
+                            <input
+                                :value="createdInvitation.link"
+                                readonly
+                                aria-label="Новая ссылка приглашения"
+                            />
+                            <button
+                                class="small"
+                                :disabled="invitationsBusy || invitationStatus(createdInvitation) !== 'active'"
+                                @click="copyInvitation(createdInvitation)"
+                            >
+                                Копировать
+                            </button>
+                        </div>
+                    </div>
+                    <p v-if="invitationsError" class="err" role="alert">{{ invitationsError }}</p>
+                    <p v-if="invitationsNotice" role="status">{{ invitationsNotice }}</p>
+                    <div class="invitation-toolbar">
+                        <label
+                            >Показать
+                            <select v-model="invitationFilter">
+                                <option value="active">Активные</option>
+                                <option value="invalid">Недействительные</option>
+                            </select>
+                        </label>
+                        <button class="small" @click="loadInvitations" :disabled="invitationsBusy">
+                            Обновить список
+                        </button>
+                    </div>
+                    <p v-if="invitationsBusy" role="status">Выполняется запрос…</p>
+                    <p v-else-if="!visibleInvitations.length">В этой группе нет приглашений.</p>
+                    <ul class="invitation-list">
+                        <li v-for="item in visibleInvitations" :key="item.token">
+                            <strong>{{ invitationStatusLabel(item) }}</strong>
+                            <div class="invitation-link">
+                                <input
+                                    :value="item.link"
+                                    readonly
+                                    aria-label="Ссылка приглашения"
+                                />
+                                <button
+                                    class="small"
+                                    @click="copyInvitation(item)"
+                                    :disabled="invitationsBusy || invitationStatus(item) !== 'active'"
+                                >
+                                    Копировать
+                                </button>
+                            </div>
+                            <dl>
+                                <dt>Окончание</dt>
+                                <dd>{{ invitationExpiry(item) }}</dd>
+                                <dt>Разрешено регистраций</dt>
+                                <dd>
+                                    {{ item.uses_allowed === null ? 'Без лимита' : item.uses_allowed
+                                    }}
+                                </dd>
+                                <dt>Завершено</dt>
+                                <dd>{{ item.completed }}</dd>
+                                <dt>В процессе</dt>
+                                <dd>{{ item.pending }}</dd>
+                            </dl>
+                            <button
+                                v-if="invitationStatus(item) === 'active'"
+                                class="small"
+                                :disabled="invitationsBusy"
+                                @click="revokeInvitation(item)"
+                            >
+                                Отозвать
+                            </button>
+                        </li>
+                    </ul>
+                    <p class="muted">
+                        Начатые регистрации занимают места в лимите. Отзыв запрещает новые
+                        использования; уже начатые регистрации могут завершиться.
+                    </p>
+                </section>
             </div>
         </div>
 

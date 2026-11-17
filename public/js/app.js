@@ -1,6 +1,7 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
+import { useInvitations } from './invitations.js';
 
 // Входная точка интерфейса: Vue связывает шаблон public/index.html с действиями
 // из matrix-client.js. Здесь хранятся значения полей и видимые ошибки, но нет
@@ -8,6 +9,7 @@ import * as mc from './matrix-client.js';
 createApp({
     render,
     setup() {
+        const invitationManager = useInvitations(mc.invitationRequest);
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
@@ -111,6 +113,7 @@ createApp({
 
         // Очищает видимые поля после выхода; сохранённую сессию удаляет mc.logout.
         function logout() {
+            invitationManager.closeInvitations();
             mc.logout();
             username.value = '';
             password.value = '';
@@ -184,6 +187,7 @@ createApp({
 
         // Только возвращённые значения доступны выражениям в public/index.html.
         return {
+            ...invitationManager,
             s,
             username,
             password,
