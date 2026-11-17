@@ -95,6 +95,20 @@ describe('окно регистрационных приглашений', () =>
         expect(writeText).toHaveBeenCalledWith(item().link);
         expect(ui.invitationsNotice.value).toBe('Ссылка скопирована.');
     });
+    it('добавляет логин к личной ссылке на клиенте и сохраняет проверку статуса', async () => {
+        const writeText = vi.fn(async () => {});
+        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        const request = vi.fn(async () => ({ invitation: item() }));
+        const ui = mount(request);
+        ui.invitationUsername.value = 'alice';
+        await ui.createInvitation();
+        expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({ hours: 24, uses: 1 });
+        await ui.copyInvitation(ui.createdInvitation.value);
+        expect(request).toHaveBeenLastCalledWith('/api/invitations/CODE');
+        const link = new URL(writeText.mock.calls[0][0]);
+        expect(link.searchParams.get('registration_token')).toBe('CODE');
+        expect(link.hash).toBe('#registration_username=alice');
+    });
     it('показывает отказ в правах и позволяет закрыть окно', async () => {
         const ui = mount(async () => {
             throw new Error('У вас нет права управлять приглашениями.');

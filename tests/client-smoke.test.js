@@ -10,15 +10,18 @@ describe('собранный веб-клиент', () => {
 
     it('оформляет существующие части интерфейса и узкие экраны', () => {
         const css = readFileSync('public/css/style.css', 'utf8');
+        const authCss = readFileSync('public/css/auth-matrix.css', 'utf8');
+        expect(authCss).toContain('.auth-box');
+        expect(readFileSync('public/index.html', 'utf8')).toContain('/css/auth-matrix.css');
         for (const selector of [
-            '.auth-box',
-            '.layout',
+            '.chat-app',
             '.sidebar',
-            '.side-item',
-            '.channel-header',
-            '.messages',
-            '.bubble',
-            '.input-row',
+            '.channel-item',
+            '.chat-header',
+            '.messages-area',
+            '.message.sent',
+            '.message.received',
+            '.chat-input-area',
             '.invite-row',
         ]) {
             expect(css).toContain(selector);
@@ -54,6 +57,17 @@ describe('собранный веб-клиент', () => {
             expect(dom.window.document.querySelector('.auth-box').tagName).toBe('FORM');
             expect(dom.window.document.querySelectorAll('.auth-box')).toHaveLength(2);
             expect(dom.window.document.querySelector('.auth-box .primary').type).toBe('submit');
+            expect(
+                Array.from(dom.window.document.querySelectorAll('.auth-rail button'), (button) =>
+                    button.textContent.trim(),
+                ).slice(0, 2),
+            ).toEqual(['О проекте', 'Разработка']);
+            expect(dom.window.document.querySelector('.settings-links')).toBeNull();
+            const footer = dom.window.document.querySelector('footer.auth-status');
+            expect(footer.querySelector('.auth-status-brand').textContent).toContain('ALT');
+            expect(footer.querySelector('.auth-status-mode').textContent).toBe('Matrix');
+            expect(footer.querySelector('.auth-status-controls').textContent).toContain('Сбой');
+            expect(footer.querySelector('.auth-status-controls').textContent).toContain('Авто');
             expect(dom.window.document.querySelector('label[for="auth-password"]')).not.toBeNull();
             expect(dom.window.document.querySelector('.auth-panel').textContent).not.toContain(
                 'Сервер:',
@@ -64,6 +78,35 @@ describe('собранный веб-клиент', () => {
             login.value = 'alice';
             login.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
             expect(register.value).toBe('');
+        } finally {
+            dom.window.close();
+        }
+    });
+
+    it('оставляет тёмный фон на устройстве с малым объёмом памяти', async () => {
+        const html = readFileSync('public/index.html', 'utf8');
+        const bundle = readFileSync('public/js/alt.js', 'utf8');
+        const dom = new JSDOM(html, { url: 'http://localhost:3000/', runScripts: 'outside-only' });
+        try {
+            const { document, navigator } = dom.window;
+            Object.defineProperty(navigator, 'deviceMemory', { value: 2 });
+            dom.window.CanvasRenderingContext2D = function () {
+                throw new Error('Canvas should stay disabled');
+            };
+            dom.window.eval(bundle);
+            const footer = document.querySelector('footer.auth-status');
+            expect(footer.querySelector('.auth-status-mode').textContent).toBe('Тёмный фон');
+            expect(footer.querySelector('[role="status"]').textContent).toBe('');
+            for (const button of footer.querySelectorAll('.auth-status-controls button')) {
+                button.click();
+                await Promise.resolve();
+                expect(footer.querySelector('[role="status"]').textContent).toContain(
+                    'мало памяти',
+                );
+                expect(document.querySelector('#matrix-bg')).toBeNull();
+            }
+            expect(footer.querySelector('.auth-status-controls').textContent).toContain('Сбой');
+            expect(footer.querySelector('.auth-status-controls').textContent).toContain('Авто');
         } finally {
             dom.window.close();
         }
@@ -83,6 +126,29 @@ describe('собранный веб-клиент', () => {
             );
             expect(dom.window.document.querySelector('#auth-token').value).toBe('CODE');
             expect(dom.window.location.search).toBe('?other=1');
+        } finally {
+            dom.window.close();
+        }
+    });
+
+    it('по личной ссылке показывает только поле пароля в выбранной регистрации', () => {
+        const html = readFileSync('public/index.html', 'utf8');
+        const bundle = readFileSync('public/js/alt.js', 'utf8');
+        const dom = new JSDOM(html, {
+            url: 'http://localhost:3000/?registration_token=CODE#registration_username=alice',
+            runScripts: 'outside-only',
+        });
+        try {
+            dom.window.eval(bundle);
+            const { document, location } = dom.window;
+            expect(document.querySelector('.auth-choice button:last-child').ariaPressed).toBe(
+                'true',
+            );
+            expect(document.querySelector('.personal-invitation strong').textContent).toBe('alice');
+            expect(
+                Array.from(document.querySelectorAll('.auth-register input'), (i) => i.type),
+            ).toEqual(['password']);
+            expect(location.search + location.hash).toBe('');
         } finally {
             dom.window.close();
         }

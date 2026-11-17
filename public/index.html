@@ -5,13 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Alt — общение без лишнего</title>
         <link rel="stylesheet" href="/css/style.css" />
+        <link rel="stylesheet" href="/css/auth-matrix.css" />
     </head>
     <body>
         <div id="app">
             <div v-if="s.phase === 'idle'" class="auth-screen">
-                <div class="auth-grid" aria-hidden="true"></div>
-                <div class="auth-scanline" aria-hidden="true"></div>
-                <header class="auth-logo-wrapper">
+                <header class="auth-logo-wrapper" :class="{ 'logo-failed': logoFailed }">
                     <h1 class="visually-hidden">ALT</h1>
                     <img
                         v-if="!logoFailed"
@@ -22,16 +21,45 @@
                     />
                     <span v-else class="auth-logo-fallback" aria-hidden="true">ALT</span>
                 </header>
-                <div class="auth-visualizer" aria-hidden="true">
-                    <span v-for="n in 17" :key="n"></span>
-                </div>
-                <div class="auth-diagonal" aria-hidden="true"></div>
-                <div class="auth-skull" aria-hidden="true">
-                    <img src="/assets/skull.png" alt="" />
-                </div>
+
+                <div class="auth-barcode" aria-hidden="true"></div>
+                <div class="auth-diag" aria-hidden="true"></div>
+                <img src="/assets/skull.png" class="auth-skull" alt="" />
+                <nav class="auth-rail" aria-label="Разделы Alt">
+                    <button type="button" class="small rail-btn" @click="openSettings('about')">
+                        О проекте
+                    </button>
+                    <button type="button" class="small rail-btn" @click="openSettings('team')">
+                        Разработка
+                    </button>
+                    <button
+                        type="button"
+                        class="small rail-btn rail-menu"
+                        aria-label="Меню"
+                        @click="openSettings()"
+                    >
+                        ☰
+                    </button>
+                </nav>
 
                 <main class="auth-panel">
-                    <form class="auth-box" @submit.prevent="doLogin">
+                    <nav class="auth-choice" aria-label="Доступ к аккаунту">
+                        <button
+                            type="button"
+                            :aria-pressed="!registration"
+                            @click="showAuthForm(false)"
+                        >
+                            Вход
+                        </button>
+                        <button
+                            type="button"
+                            :aria-pressed="registration"
+                            @click="showAuthForm(true)"
+                        >
+                            Регистрация
+                        </button>
+                    </nav>
+                    <form v-show="!registration" class="auth-box" @submit.prevent="doLogin">
                         <h2>Вход</h2>
                         <div class="auth-fields">
                             <div>
@@ -57,10 +85,17 @@
                         <button type="submit" class="primary" :disabled="busy">ВХОД</button>
                     </form>
 
-                    <form class="auth-box auth-register" @submit.prevent="doRegister">
+                    <form
+                        v-show="registration"
+                        class="auth-box auth-register"
+                        @submit.prevent="doRegister"
+                    >
                         <h2>Регистрация</h2>
+                        <p v-if="personalLogin" class="personal-invitation">
+                            Личное приглашение для <strong>{{ personalLogin }}</strong>
+                        </p>
                         <div class="auth-fields">
-                            <div>
+                            <div v-if="!personalLogin">
                                 <label for="register-username">Логин</label>
                                 <input
                                     id="register-username"
@@ -80,8 +115,9 @@
                                 />
                             </div>
                         </div>
-                        <label for="auth-token">Код приглашения</label>
+                        <label v-if="!personalLogin" for="auth-token">Код приглашения</label>
                         <input
+                            v-if="!personalLogin"
                             id="auth-token"
                             v-model="token"
                             placeholder="Код приглашения"
@@ -91,11 +127,23 @@
                     </form>
                     <div v-if="err || s.error" class="err" role="alert">{{ err || s.error }}</div>
                 </main>
-
-                <div class="auth-rail" aria-hidden="true">
-                    <span>ALT</span><span>MATRIX</span><span class="rail-line"></span>
-                </div>
-                <div class="auth-bottom" aria-hidden="true"></div>
+                <footer class="auth-status" aria-label="Настройки фона">
+                    <span class="auth-status-brand">
+                        <span class="auth-status-rgb" aria-hidden="true"></span>
+                        ALT
+                    </span>
+                    <span class="auth-status-mode">{{ backgroundLabel }}</span>
+                    <div class="auth-status-controls">
+                        <button type="button" class="small" @click="cycleLoginEffect">
+                            <span class="visually-hidden">Эффект: </span>{{ effectLabel }}
+                        </button>
+                        <button type="button" class="small" @click="cycleLoginQuality">
+                            Качество: {{ qualityLabel }}
+                        </button>
+                    </div>
+                    <span v-if="renderStats" class="auth-status-stats">{{ renderStats }}</span>
+                    <p class="background-warning" role="status">{{ backgroundWarning }}</p>
+                </footer>
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">
@@ -104,104 +152,147 @@
                 <span class="pill">{{ connLabel }}</span>
             </div>
 
-            <div v-else class="layout">
+            <div v-else class="chat-app" :class="{ 'room-open': active }">
                 <aside class="sidebar">
-                    <div class="brand">
-                        <span class="brand-symbol" aria-hidden="true">A</span>
-                        <span class="brand-title">ALT <small>ваше пространство</small></span>
+                    <div class="sidebar-header">
+                        <img src="/assets/alt-logo.png" alt="ALT" class="sidebar-logo" />
+                        <span class="conn-pill">{{ connLabel }}</span>
+                        <button
+                            type="button"
+                            class="assistant-btn"
+                            aria-label="Справка ALT"
+                            @click="openSettings('faq')"
+                        >
+                            <img src="/assets/skull.png" alt="" />
+                        </button>
                     </div>
-                    <div class="side-block">
-                        <div class="side-header">
-                            <span>Комнаты</span> <span class="pill">{{ connLabel }}</span>
-                        </div>
 
+                    <div class="sidebar-section">
                         <button
-                            class="small create-button"
-                            @click="showCreate = !showCreate"
-                            aria-label="Создать комнату"
+                            type="button"
+                            class="section-header"
+                            :aria-expanded="!roomsCollapsed"
+                            aria-controls="room-list"
+                            @click="roomsCollapsed = !roomsCollapsed"
                         >
-                            <span aria-hidden="true">＋</span
-                            ><span class="create-label">Новая комната</span>
-                        </button>
-                        <button
-                            class="small registration-invite-button"
-                            @click="openInvitations"
-                            title="Пригласить пользователя"
-                        >
-                            Пригласить пользователя
-                        </button>
-                        <div v-if="showCreate" class="create-form">
-                            <input
-                                v-model="newRoomName"
-                                placeholder="Название комнаты"
-                                @keyup.enter="doCreateRoom"
-                            />
-                            <label class="chk"
-                                ><input
-                                    type="checkbox"
-                                    v-model="newRoomPublic"
-                                    @change="newRoomEncrypted = false"
-                                />
-                                публичная</label
-                            >
-                            <label class="chk" :title="s.cryptoError">
-                                <input
-                                    type="checkbox"
-                                    v-model="newRoomEncrypted"
-                                    :disabled="newRoomPublic || !!s.cryptoError"
-                                />
-                                сквозное шифрование
-                            </label>
-                            <button class="small primary" @click="doCreateRoom">Создать</button>
-                        </div>
-
-                        <div v-for="r in invited" :key="'i' + r.roomId" class="side-item invite">
-                            <span class="linklike" :title="r.name">
-                                <span class="room-avatar" aria-hidden="true"
-                                    >{{ r.name.slice(0, 1).toUpperCase() }}</span
-                                >
-                                <span class="room-name">{{ r.name }} <em>Приглашение</em></span>
+                            <span class="section-label">Комнаты</span>
+                            <span class="section-toggle" :class="{ collapsed: roomsCollapsed }">
+                                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="M6 9l6 6 6-6"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
                             </span>
+                        </button>
+
+                        <div id="room-list" v-show="!roomsCollapsed" class="channel-list">
                             <button
-                                class="small"
-                                :aria-label="'Принять приглашение в ' + r.name"
-                                @click="join(r)"
+                                class="small create-button"
+                                @click.stop="showCreate = !showCreate"
+                                aria-label="Создать комнату"
                             >
-                                Принять
+                                <span aria-hidden="true">＋</span
+                                ><span class="create-label">Новая комната</span>
                             </button>
-                        </div>
-
-                        <div
-                            v-for="r in joined"
-                            :key="r.roomId"
-                            class="side-item"
-                            :class="{ active: active && active.roomId === r.roomId }"
-                        >
-                            <button class="linklike" :title="r.name" @click="select(r)">
-                                <span class="room-avatar" aria-hidden="true"
-                                    >{{ r.name.slice(0, 1).toUpperCase() }}</span
+                            <div v-if="showCreate" class="create-form">
+                                <input
+                                    v-model="newRoomName"
+                                    placeholder="Название комнаты"
+                                    @keyup.enter="doCreateRoom"
+                                />
+                                <label class="chk"
+                                    ><input
+                                        type="checkbox"
+                                        v-model="newRoomPublic"
+                                        @change="newRoomEncrypted = false"
+                                    />
+                                    публичная</label
                                 >
-                                <span class="room-name">{{ r.name }}</span>
-                            </button>
-                        </div>
+                                <label class="chk" :title="s.cryptoError">
+                                    <input
+                                        type="checkbox"
+                                        v-model="newRoomEncrypted"
+                                        :disabled="newRoomPublic || !!s.cryptoError"
+                                    />
+                                    сквозное шифрование
+                                </label>
+                                <button class="small primary" @click="doCreateRoom">Создать</button>
+                                <p v-if="err" class="err" role="alert">{{ err }}</p>
+                            </div>
 
-                        <div v-if="joined.length === 0 && invited.length === 0" class="muted">
-                            Нет комнат. Создайте комнату или дождитесь приглашения.
+                            <div
+                                v-for="r in invited"
+                                :key="'i' + r.roomId"
+                                class="channel-item invite"
+                            >
+                                <span class="channel-hash">#</span>
+                                <span class="channel-name-text" :title="r.name">
+                                    {{ r.name }} <em>Приглашение</em>
+                                </span>
+                                <button
+                                    class="small"
+                                    :aria-label="'Принять приглашение в ' + r.name"
+                                    @click="join(r)"
+                                >
+                                    Принять
+                                </button>
+                            </div>
+
+                            <div
+                                v-for="r in joined"
+                                :key="r.roomId"
+                                class="channel-item"
+                                :class="{ active: active && active.roomId === r.roomId }"
+                            >
+                                <button
+                                    class="channel-name-text"
+                                    :title="r.name"
+                                    @click="select(r)"
+                                >
+                                    <span class="channel-hash">#</span> {{ r.name }}
+                                </button>
+                                <span v-if="r.isEncrypted" class="enc-dot" title="зашифрована"
+                                    >🔒</span
+                                >
+                            </div>
+
+                            <div v-if="joined.length === 0 && invited.length === 0" class="muted">
+                                Нет комнат. Создайте комнату или дождитесь приглашения.
+                            </div>
                         </div>
                     </div>
 
-                    <div class="user-panel">
+                    <button
+                        class="small registration-invite-button"
+                        @click="openInvitations"
+                        title="Пригласить пользователя"
+                    >
+                        Пригласить пользователя
+                    </button>
+
+                    <div class="sidebar-footer">
                         <span class="user-avatar" aria-hidden="true"
                             >{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span
                         >
-                        <span class="whoami" :title="s.myName || s.myUserId"
+                        <span class="user-name" :title="s.myName || s.myUserId"
                             >{{ s.myName || s.myUserId }}</span
                         >
-                        <button class="small" @click="logout">Выйти</button>
+                        <button
+                            type="button"
+                            class="small"
+                            aria-label="Меню"
+                            @click="openSettings()"
+                        >
+                            ☰
+                        </button>
                     </div>
                 </aside>
 
-                <main class="main">
+                <main class="chat-main">
                     <div v-if="!active" class="empty">
                         <span class="empty-icon" aria-hidden="true">✦</span>
                         <h2>Здесь начинается разговор</h2>
@@ -209,12 +300,15 @@
                     </div>
 
                     <template v-else>
-                        <div class="channel-header">
-                            <span class="channel-name" :title="active.name"
-                                ># {{ active.name }}</span
+                        <div class="chat-header">
+                            <button type="button" class="small rooms-back" @click="backToRooms">
+                                ← Комнаты
+                            </button>
+                            <span class="chat-header-hash">#</span>
+                            <span class="chat-header-title" :title="active.name"
+                                >{{ active.name }}</span
                             >
                             <span v-if="active.isEncrypted" class="enc-badge">🔒 зашифрована</span>
-                            <button class="small right" @click="loadOlder">История</button>
                         </div>
 
                         <div
@@ -225,15 +319,47 @@
                             {{ s.cryptoError }}
                         </div>
 
-                        <div class="messages" ref="messagesBox">
-                            <div v-for="m in active.messages" :key="m.id" class="message">
-                                <div class="bubble" :class="{ encrypted: m.encrypted }">
-                                    <div class="bubble-head">
-                                        <b>{{ m.senderName }}</b
-                                        ><span class="meta">{{ fmt(m.ts) }}</span>
-                                    </div>
-                                    <div class="bubble-text">{{ m.body }}</div>
-                                </div>
+                        <div
+                            :key="active.roomId"
+                            class="messages-area"
+                            ref="messagesBox"
+                            tabindex="0"
+                            aria-label="Сообщения комнаты"
+                            @scroll.passive="onMessagesScroll"
+                        >
+                            <div
+                                class="history-status"
+                                v-if="historyPending || historyError || historyNeedsMore"
+                            >
+                                <span v-if="historyPending" role="status"
+                                    >Загружаем сообщения…</span
+                                >
+                                <span v-else-if="historyError" role="alert"
+                                    >{{ historyError }}</span
+                                >
+                                <button
+                                    v-if="!historyPending"
+                                    type="button"
+                                    class="small"
+                                    @click="loadOlder"
+                                >
+                                    {{ historyError ? 'Повторить' : 'Предыдущие сообщения' }}
+                                </button>
+                            </div>
+                            <div
+                                v-for="m in active.messages"
+                                :key="m.id"
+                                class="message"
+                                :class="[
+                                    m.sender === s.myUserId ? 'sent' : 'received',
+                                    { encrypted: m.encrypted },
+                                ]"
+                            >
+                                <span v-if="m.sender !== s.myUserId" class="message-sender"
+                                    >{{ m.senderName }}</span
+                                >
+                                <div class="message-content">{{ m.body }}</div>
+                                <div class="message-time">{{ fmt(m.ts) }}</div>
                             </div>
                             <div v-if="active.messages.length === 0" class="muted center">
                                 Сообщений пока нет
@@ -242,16 +368,32 @@
 
                         <form
                             v-if="!active.isEncrypted || !s.cryptoError"
-                            class="input-row"
+                            class="chat-input-area"
                             @submit.prevent="send"
                         >
-                            <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
-                            <button type="submit" class="primary">Отправить</button>
+                            <input
+                                v-model="draft"
+                                class="chat-input"
+                                placeholder="Сообщение…"
+                                autocomplete="off"
+                            />
+                            <button type="submit" class="send-btn" aria-label="Отправить">
+                                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    />
+                                </svg>
+                            </button>
                         </form>
 
                         <div class="invite-row">
                             <input
                                 v-model="inviteTarget"
+                                class="chat-input"
                                 placeholder="@user:synapse.creatusest.ru"
                                 autocomplete="off"
                             />
@@ -261,6 +403,7 @@
                     <div v-if="err" class="err inline" role="alert">{{ err }}</div>
                 </main>
             </div>
+
             <div v-if="invitationsOpen" class="invitation-overlay" @click.self="closeInvitations">
                 <section
                     class="invitation-dialog"
@@ -295,6 +438,10 @@
                                 <option :value="5">5</option>
                             </select>
                         </label>
+                        <label v-if="invitationUses === 1">
+                            Логин получателя (необязательно)
+                            <input v-model.trim="invitationUsername" :disabled="invitationsBusy" />
+                        </label>
                         <button class="primary" :disabled="invitationsBusy">
                             Создать приглашение
                         </button>
@@ -306,7 +453,7 @@
                         >
                         <div class="invitation-link">
                             <input
-                                :value="createdInvitation.link"
+                                :value="invitationLink(createdInvitation)"
                                 readonly
                                 aria-label="Новая ссылка приглашения"
                             />
@@ -340,7 +487,7 @@
                             <strong>{{ invitationStatusLabel(item) }}</strong>
                             <div class="invitation-link">
                                 <input
-                                    :value="item.link"
+                                    :value="invitationLink(item)"
                                     readonly
                                     aria-label="Ссылка приглашения"
                                 />
@@ -381,6 +528,190 @@
                     </p>
                 </section>
             </div>
+            <dialog ref="settingsDialog" class="settings-panel" aria-labelledby="settings-title">
+                <header class="settings-header">
+                    <button
+                        v-if="settingsPage !== 'menu'"
+                        type="button"
+                        class="small"
+                        @click="settingsPage = 'menu'"
+                    >
+                        ← Меню
+                    </button>
+                    <h2 id="settings-title">{{ settingsTitle }}</h2>
+                    <button
+                        type="button"
+                        class="small"
+                        @click="closeSettings"
+                        aria-label="Закрыть меню"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div v-if="settingsPage === 'menu'">
+                    <section class="settings-section">
+                        <h3>Внешний вид</h3>
+                        <label class="settings-row">
+                            Тема
+                            <select v-model="appearance.bg" @change="selectBackground">
+                                <option value="auto">По экрану</option>
+                                <option value="dark">Тёмная</option>
+                                <option value="light">Светлая</option>
+                                <option value="matrix">Matrix</option>
+                            </select>
+                        </label>
+                        <template v-if="appearance.bg === 'matrix' || appearance.bg === 'auto'">
+                            <label class="settings-row">
+                                Качество фона
+                                <select
+                                    v-model="appearance.quality"
+                                    @change="reportBackgroundLimit"
+                                >
+                                    <option value="auto">Авто</option>
+                                    <option :value="0">Низкое</option>
+                                    <option :value="1">Среднее</option>
+                                    <option :value="2">Высокое</option>
+                                </select>
+                            </label>
+                            <label class="settings-row">
+                                Интенсивность
+                                <select v-model="appearance.fx" @change="reportBackgroundLimit">
+                                    <option :value="0">Спокойно</option>
+                                    <option :value="1">Сбой</option>
+                                    <option :value="2">Хаос</option>
+                                </select>
+                            </label>
+                            <label
+                                v-for="(label, prop) in { speed: 'Скорость', glow: 'Свечение', density: 'Плотность' }"
+                                :key="prop"
+                                class="settings-row"
+                            >
+                                {{ label }}
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="3"
+                                    step="0.1"
+                                    v-model.number="appearance[prop]"
+                                />
+                            </label>
+                        </template>
+                        <label class="settings-row">
+                            Анимации
+                            <input type="checkbox" v-model="appearance.anim" />
+                        </label>
+                        <p class="background-warning" role="status">{{ backgroundWarning }}</p>
+                    </section>
+                    <nav
+                        v-if="s.phase === 'ready'"
+                        class="settings-section settings-links"
+                        aria-label="Информация об Alt"
+                    >
+                        <button type="button" class="small" @click="settingsPage = 'about'">
+                            О проекте
+                        </button>
+                        <button type="button" class="small" @click="settingsPage = 'team'">
+                            Разработка
+                        </button>
+                    </nav>
+                    <section v-if="s.phase === 'ready'" class="settings-section">
+                        <h3>Аккаунт</h3>
+                        <p class="settings-name">{{ s.myName || s.myUserId }}</p>
+                        <button type="button" class="settings-logout" @click="logout">
+                            Выйти из аккаунта
+                        </button>
+                    </section>
+                </div>
+                <section v-else-if="settingsPage === 'about'" class="settings-section">
+                    <p>Alt — мессенджер нового поколения для личных и командных разговоров.</p>
+                    <p>
+                        Общайся в комнатах, приглашай друзей и защищай переписку сквозным
+                        шифрованием.
+                    </p>
+                </section>
+                <section v-else-if="settingsPage === 'team'" class="settings-section">
+                    <p>
+                        Alt — студенческий проект. Мы вместе разрабатываем мессенджер, проектируем
+                        интерфейс, проверяем работу клиента и готовим материалы к защите.
+                    </p>
+                    <ul class="team-list">
+                        <li>
+                            <strong>Васильев А. С. — разработка клиента</strong>
+                            <p>
+                                Автор первой версии Alt. Работает над интерфейсом и серверной частью
+                                приложения.
+                            </p>
+                        </li>
+                        <li>
+                            <strong
+                                >Дрыкин Н. А. — проверка интерфейса и пользовательские
+                                инструкции</strong
+                            >
+                            <p>
+                                Сверяет шаги в инструкциях с поведением клиента и уточняет описания
+                                пользовательских сценариев.
+                            </p>
+                        </li>
+                        <li>
+                            <strong>Куренков Д. Д. (gubga) — UX/UI-дизайн</strong>
+                            <p>
+                                Отвечает за визуальный стиль Alt, компоновку экранов и
+                                взаимодействие пользователя с интерфейсом.
+                            </p>
+                        </li>
+                        <li>
+                            <strong>Лебедева А. В. — документация и презентация проекта</strong>
+                            <p>
+                                Ведёт пояснительную записку, готовит презентацию и координирует
+                                работу над пользовательскими материалами.
+                            </p>
+                        </li>
+                        <li>
+                            <strong>Невретдинов Д. Ш. — функциональное тестирование</strong>
+                            <p>
+                                Отвечает за проверку входа, работы с комнатами и обмена сообщениями,
+                                а также за описание ошибок для разработчиков.
+                            </p>
+                        </li>
+                        <li>
+                            <strong
+                                >Стрельцов И. А. — координация разработки и инфраструктура</strong
+                            >
+                            <p>
+                                Инициировал проект, координирует работу команды и отвечает за
+                                серверную часть и развёртывание Alt.
+                            </p>
+                        </li>
+                        <li>
+                            <strong>Черезов Н. А. — координация проверок перед выпуском</strong>
+                            <p>
+                                Согласует с разработчиками, что проверить в новой версии, и помогает
+                                отразить результаты в документации.
+                            </p>
+                        </li>
+                    </ul>
+                </section>
+                <section v-else class="settings-section assistant-faq">
+                    <p>Короткие ответы о работе Alt.</p>
+                    <details>
+                        <summary>Как создать приватную зашифрованную комнату?</summary>
+                        <p>
+                            Выбери «Новая комната» и включи «Сквозное шифрование» перед созданием.
+                        </p>
+                    </details>
+                    <details>
+                        <summary>Как открыть старые сообщения?</summary>
+                        <p>Прокрути переписку вверх. История подгружается в той же ленте.</p>
+                    </details>
+                    <details>
+                        <summary>Как пригласить собеседника в комнату?</summary>
+                        <p>
+                            В открытой комнате укажи полный Matrix ID собеседника и нажми
+                            «Пригласить».
+                        </p>
+                    </details>
+                </section>
+            </dialog>
         </div>
 
         <script src="/js/alt.js" defer></script>

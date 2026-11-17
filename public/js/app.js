@@ -1,7 +1,8 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
-import { useInvitations } from './invitations.js';
+import { isRegistrationUsername, useInvitations } from './invitations.js';
+import { useAppearance } from './appearance.js';
 
 // Входная точка интерфейса: Vue связывает шаблон public/index.html с действиями
 // из matrix-client.js. Здесь хранятся значения полей и видимые ошибки, но нет
@@ -10,9 +11,25 @@ createApp({
     render,
     setup() {
         const invitationManager = useInvitations(mc.invitationRequest);
+        const settingsDialog = ref(null);
+        const settingsPage = ref('menu');
+        const settingsTitle = computed(
+            () =>
+                ({ menu: 'Меню', about: 'О проекте', team: 'Разработка', faq: 'Справка ALT' })[
+                    settingsPage.value
+                ],
+        );
+        function openSettings(page = 'menu') {
+            settingsPage.value = page;
+            settingsDialog.value.showModal();
+        }
+        function closeSettings() {
+            settingsDialog.value.close();
+        }
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
+        const appearanceControls = useAppearance(() => s.value.phase === 'idle');
         const unsub = mc.subscribe((v) => {
             s.value = v;
         });
@@ -30,10 +47,20 @@ createApp({
         // Это код регистрации пользователя, а не приглашение в комнату.
         const invitation =
             inviteUrl.searchParams.get('registration_token') || inviteUrl.searchParams.get('token');
+        const inviteFragment = new URLSearchParams(inviteUrl.hash.slice(1));
+        const suggestedLogin = inviteFragment.get('registration_username') || '';
+        const personalLogin =
+            invitation && isRegistrationUsername(suggestedLogin) ? suggestedLogin : '';
+        const registration = ref(Boolean(invitation));
+        registerUsername.value = personalLogin;
         const token = ref(invitation || '');
         if (invitation) {
             inviteUrl.searchParams.delete('registration_token');
             inviteUrl.searchParams.delete('token');
+            if (inviteFragment.has('registration_username')) {
+                inviteFragment.delete('registration_username');
+                inviteUrl.hash = inviteFragment.toString();
+            }
             // Не оставляем код приглашения в адресной строке и истории браузера.
             window.history.replaceState(null, '', inviteUrl);
         }
@@ -41,8 +68,19 @@ createApp({
         const err = ref('');
         const draft = ref('');
         const messagesBox = ref(null);
+        const historyPending = ref(false);
+        const historyError = ref('');
+        const historyNeedsMore = ref(false);
+        let historyHasMore = true;
+        let historyRequest = null;
+
+        function showAuthForm(showRegistration) {
+            registration.value = showRegistration;
+            err.value = '';
+        }
 
         const showCreate = ref(false);
+        const roomsCollapsed = ref(false);
         const newRoomName = ref('');
         const newRoomPublic = ref(false);
         const newRoomEncrypted = ref(false);
@@ -67,15 +105,26 @@ createApp({
                 })[s.value.connection] || s.value.connection,
         );
 
-        // После появления нового сообщения прокручиваем видимую переписку вниз.
-        // nextTick ждёт, пока Vue добавит сообщение в HTML.
         watch(
-            () => active.value?.messages.length,
-            () => {
-                nextTick(() => {
-                    if (messagesBox.value)
-                        messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
-                });
+            [() => active.value?.roomId, () => active.value?.messages.length],
+            async ([roomId], [previousRoomId]) => {
+                const roomChanged = roomId !== previousRoomId;
+                if (roomChanged) {
+                    historyRequest = null;
+                    historyHasMore = true;
+                    historyPending.value = false;
+                    historyError.value = '';
+                    historyNeedsMore.value = false;
+                }
+                const box = messagesBox.value;
+                const follow = box && box.scrollHeight - box.scrollTop - box.clientHeight < 48;
+                if (!roomId || (!roomChanged && (!follow || historyPending.value))) return;
+                await nextTick();
+                if (roomId !== active.value?.roomId || !messagesBox.value) return;
+                const currentBox = messagesBox.value;
+                currentBox.scrollTop = currentBox.scrollHeight;
+                if (roomChanged && currentBox.scrollHeight <= currentBox.clientHeight)
+                    void loadOlder();
             },
         );
 
@@ -115,6 +164,7 @@ createApp({
         // Очищает видимые поля после выхода; сохранённую сессию удаляет mc.logout.
         function logout() {
             invitationManager.closeInvitations();
+            if (settingsDialog.value.open) closeSettings();
             mc.logout();
             username.value = '';
             password.value = '';
@@ -127,13 +177,47 @@ createApp({
         function select(r) {
             mc.selectRoom(r.roomId);
         }
+        function backToRooms() {
+            roomsCollapsed.value = false;
+            mc.selectRoom(null);
+        }
         // Принятие приглашения в комнату отправляется на Synapse через SDK.
         function join(r) {
             mc.joinRoom(r.roomId);
         }
-        // Просит предыдущие события только для выбранной комнаты.
-        function loadOlder() {
-            if (active.value) mc.loadOlder(active.value.roomId);
+        async function loadOlder() {
+            const roomId = active.value?.roomId;
+            const box = messagesBox.value;
+            if (!roomId || !box || !historyHasMore || historyRequest) return;
+            const request = { roomId };
+            historyRequest = request;
+            historyError.value = '';
+            historyNeedsMore.value = false;
+            const height = box.scrollHeight;
+            const top = box.scrollTop;
+            historyPending.value = true;
+            try {
+                const more = await mc.loadOlder(roomId);
+                if (historyRequest !== request) return;
+                historyHasMore = more;
+            } catch {
+                if (historyRequest !== request) return;
+                historyError.value = 'Не удалось загрузить предыдущие сообщения.';
+            } finally {
+                if (historyRequest === request) {
+                    historyPending.value = false;
+                    await nextTick();
+                    if (historyRequest === request) {
+                        box.scrollTop = top + box.scrollHeight - height;
+                        historyNeedsMore.value =
+                            historyHasMore && box.scrollHeight <= box.clientHeight;
+                        historyRequest = null;
+                    }
+                }
+            }
+        }
+        function onMessagesScroll(event) {
+            if (event.currentTarget.scrollTop <= 36 && !historyError.value) void loadOlder();
         }
 
         /** Отправляет непустой текст в открытую комнату и очищает поле после успеха. */
@@ -206,11 +290,21 @@ createApp({
             registerPassword,
             logoFailed,
             token,
+            registration,
+            personalLogin,
+            showAuthForm,
+            ...appearanceControls,
+            settingsDialog,
+            settingsPage,
+            settingsTitle,
+            openSettings,
+            closeSettings,
             busy,
             err,
             draft,
             messagesBox,
             showCreate,
+            roomsCollapsed,
             newRoomName,
             newRoomPublic,
             newRoomEncrypted,
@@ -223,8 +317,13 @@ createApp({
             doRegister,
             logout,
             select,
+            backToRooms,
             join,
             loadOlder,
+            onMessagesScroll,
+            historyPending,
+            historyError,
+            historyNeedsMore,
             send,
             doCreateRoom,
             doInvite,
