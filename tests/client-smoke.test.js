@@ -88,9 +88,9 @@ describe('собранный веб-клиент', () => {
         });
         try {
             dom.window.eval(bundle);
-            expect(dom.window.document.querySelector('.auth-register .primary').textContent).toBe(
-                'РЕГИСТРАЦИЯ',
-            );
+            expect(
+                dom.window.document.querySelector('.auth-register .primary').textContent.trim(),
+            ).toBe('РЕГИСТРАЦИЯ');
             expect(dom.window.document.querySelector('#auth-token').value).toBe('CODE');
             expect(dom.window.location.search).toBe('?other=1');
         } finally {
