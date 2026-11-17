@@ -67,25 +67,71 @@ body.bg-light {
     display: grid;
     min-height: 100dvh;
     place-items: center;
-    padding: 120px 16px 36px;
+    padding: 164px clamp(16px, 7vw, 96px) 48px;
+    overflow: clip;
 }
 
 .auth-logo-wrapper,
 .auth-barcode,
-.auth-menu {
+.auth-skull,
+.auth-diag,
+.auth-rail {
     position: absolute;
-    top: 24px;
 }
 
 .auth-logo-wrapper {
-    left: clamp(16px, 5vw, 64px);
+    z-index: 2;
+    top: 16px;
+    left: clamp(16px, 3vw, 42px);
     filter: var(--logo-shadow);
 }
 
 .auth-logo {
     display: block;
-    width: clamp(108px, 22vw, 214px);
+    width: clamp(180px, 32vw, 440px);
     height: auto;
+}
+
+.auth-logo-wrapper:not(.logo-failed)::before,
+.auth-logo-wrapper:not(.logo-failed)::after {
+    position: absolute;
+    inset: 0;
+    background: url('/assets/alt-logo.png') center / contain no-repeat;
+    content: '';
+    pointer-events: none;
+    opacity: 0;
+}
+
+.auth-logo-wrapper:not(.logo-failed)::before {
+    clip-path: inset(18% 0 46%);
+    filter: hue-rotate(55deg);
+    animation: logo-glitch 4.8s steps(1, end) infinite;
+}
+
+.auth-logo-wrapper:not(.logo-failed)::after {
+    clip-path: inset(54% 0 14%);
+    filter: hue-rotate(-55deg);
+    animation: logo-glitch 4.8s 0.12s steps(1, end) infinite reverse;
+}
+
+@keyframes logo-glitch {
+    0%,
+    82%,
+    89%,
+    94%,
+    100% {
+        opacity: 0;
+    }
+    84%,
+    91% {
+        opacity: 0.9;
+        transform: translateX(-9px);
+    }
+    86%,
+    93% {
+        opacity: 0.72;
+        transform: translateX(7px);
+    }
 }
 
 .auth-logo-fallback {
@@ -95,33 +141,117 @@ body.bg-light {
 }
 
 .auth-barcode {
-    right: 88px;
-    width: min(18vw, 150px);
-    height: 22px;
-    opacity: 0.38;
+    top: 24px;
+    right: clamp(16px, 4vw, 56px);
+    width: min(29vw, 320px);
+    height: 38px;
     background: repeating-linear-gradient(
         90deg,
-        var(--accent-2) 0 2px,
-        transparent 2px 6px,
-        var(--accent-2) 6px 8px,
-        transparent 8px 13px
+        #ff2030 0 3px,
+        transparent 3px 6px,
+        #ff2030 6px 9px,
+        transparent 9px 12px,
+        #ff2030 12px 14px,
+        transparent 14px 20px
     );
+    animation: barcode-jitter 3.2s steps(1, end) infinite;
 }
 
-.auth-menu {
-    right: 24px;
-    min-width: 44px;
-    min-height: 44px;
+@keyframes barcode-jitter {
+    0%,
+    88%,
+    95%,
+    100% {
+        transform: translateX(0);
+    }
+    90% {
+        transform: translateX(-5px);
+    }
+    93% {
+        transform: translateX(3px);
+    }
+}
+
+.auth-rail {
+    z-index: 3;
+    top: 76px;
+    right: clamp(16px, 4vw, 56px);
+    display: flex;
+    gap: 6px;
+}
+
+.auth-rail .rail-btn {
+    min-height: 42px;
+    padding-inline: 10px;
+    border-color: var(--line);
+    background: var(--surface-3);
+}
+
+.rail-fx span {
+    color: var(--accent);
+}
+
+.rail-menu {
+    min-width: 42px;
+}
+
+.auth-diag {
+    top: 144px;
+    left: 53%;
+    width: 4px;
+    height: min(62vh, 520px);
+    background: linear-gradient(#2244ff, transparent);
+    transform: rotate(24deg);
+    transform-origin: top left;
+    pointer-events: none;
+}
+
+.auth-skull {
+    right: clamp(20px, 7vw, 100px);
+    top: 24%;
+    width: clamp(160px, 23vw, 320px);
+    opacity: 0.72;
+    filter: var(--logo-shadow);
+    pointer-events: none;
+    animation: auth-skull-float 6s ease-in-out infinite;
+}
+
+@keyframes auth-skull-float {
+    50% {
+        transform: translateY(-10px);
+    }
 }
 
 .auth-panel {
-    width: min(100%, 460px);
-    padding: clamp(16px, 4vw, 32px);
+    position: relative;
+    isolation: isolate;
+    width: min(100%, 720px);
+    padding: clamp(24px, 4vw, 40px) clamp(84px, 11vw, 132px) clamp(24px, 4vw, 40px)
+        clamp(32px, 5vw, 52px);
     border: 1px solid var(--line);
-    border-top: 3px solid var(--accent);
-    border-radius: 16px;
-    background: var(--surface-3);
+    clip-path: polygon(0 0, 86% 0, 100% 100%, 0 100%);
+    background: var(--surface-2);
     box-shadow: var(--shadow);
+}
+
+.auth-panel::before,
+.auth-panel::after {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    content: '';
+}
+
+.auth-panel::before {
+    width: 16px;
+    background: linear-gradient(var(--accent-2), var(--accent));
+    opacity: 0.75;
+}
+
+.auth-panel::after {
+    background: repeating-linear-gradient(0deg, transparent 0 3px, var(--line-soft) 3px 4px);
+    opacity: 0.38;
 }
 
 .auth-choice {
@@ -212,8 +342,14 @@ body.bg-light {
     min-height: 44px;
     margin-top: 18px;
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--accent-ink);
+    border-radius: 4px;
+    background: var(--surface-2);
+    color: var(--accent);
+}
+
+.auth-register .primary {
+    border-color: var(--accent-2);
+    color: var(--accent-2);
 }
 
 .auth-box .primary:disabled {
@@ -335,6 +471,23 @@ body.bg-light {
     color: var(--text);
 }
 
+@media (max-width: 760px) {
+    .auth-skull,
+    .auth-diag {
+        display: none;
+    }
+
+    .auth-panel {
+        width: min(100%, 550px);
+        padding: 24px 20px 24px 28px;
+        clip-path: none;
+    }
+
+    .auth-panel::before {
+        width: 8px;
+    }
+}
+
 @media (max-width: 480px) {
     .auth-fields {
         grid-template-columns: 1fr;
@@ -343,11 +496,31 @@ body.bg-light {
 
     .auth-screen {
         align-items: start;
-        padding-top: 96px;
+        padding-top: 132px;
+    }
+
+    .auth-logo {
+        width: min(52vw, 200px);
+    }
+
+    .auth-rail {
+        top: 76px;
+        right: 16px;
+        left: 16px;
+        justify-content: end;
+    }
+
+    .auth-rail .rail-btn {
+        padding-inline: 7px;
+        font-size: 12px;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .auth-logo-wrapper:not(.logo-failed)::before,
+    .auth-logo-wrapper:not(.logo-failed)::after,
+    .auth-barcode,
+    .auth-skull,
     .auth-choice::before,
     .auth-box,
     .settings-panel[open] {
@@ -356,6 +529,10 @@ body.bg-light {
     }
 }
 
+body.alt-calm .auth-logo-wrapper::before,
+body.alt-calm .auth-logo-wrapper::after,
+body.alt-calm .auth-barcode,
+body.alt-calm .auth-skull,
 body.alt-calm .auth-choice::before,
 body.alt-calm .auth-box,
 body.alt-calm .settings-panel[open] {

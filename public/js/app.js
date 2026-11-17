@@ -29,7 +29,15 @@ createApp({
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
-        const appearance = useAppearance(() => s.value.phase !== 'ready');
+        const appearance = useAppearance(() => s.value.phase === 'idle');
+        const effectLabel = computed(() => ['Спокойно', 'Сбой', 'Хаос'][appearance.value.fx]);
+        function cycleLoginEffect() {
+            if (appearance.value.bg === 'dark' || appearance.value.bg === 'light') {
+                appearance.value.bg = 'auto';
+                return;
+            }
+            appearance.value.fx = (appearance.value.fx + 1) % 3;
+        }
         const unsub = mc.subscribe((v) => {
             s.value = v;
         });
@@ -294,6 +302,8 @@ createApp({
             personalLogin,
             showAuthForm,
             appearance,
+            effectLabel,
+            cycleLoginEffect,
             settingsDialog,
             settingsPage,
             settingsTitle,

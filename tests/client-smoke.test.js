@@ -57,6 +57,12 @@ describe('собранный веб-клиент', () => {
             expect(dom.window.document.querySelector('.auth-box').tagName).toBe('FORM');
             expect(dom.window.document.querySelectorAll('.auth-box')).toHaveLength(2);
             expect(dom.window.document.querySelector('.auth-box .primary').type).toBe('submit');
+            expect(
+                Array.from(dom.window.document.querySelectorAll('.auth-rail button'), (button) =>
+                    button.textContent.trim(),
+                ).slice(0, 2),
+            ).toEqual(['О проекте', 'Разработка']);
+            expect(dom.window.document.querySelector('.rail-fx').textContent).toContain('Сбой');
             expect(dom.window.document.querySelector('label[for="auth-password"]')).not.toBeNull();
             expect(dom.window.document.querySelector('.auth-panel').textContent).not.toContain(
                 'Сервер:',

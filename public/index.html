@@ -10,7 +10,7 @@
     <body>
         <div id="app">
             <div v-if="s.phase === 'idle'" class="auth-screen">
-                <header class="auth-logo-wrapper">
+                <header class="auth-logo-wrapper" :class="{ 'logo-failed': logoFailed }">
                     <h1 class="visually-hidden">ALT</h1>
                     <img
                         v-if="!logoFailed"
@@ -23,14 +23,27 @@
                 </header>
 
                 <div class="auth-barcode" aria-hidden="true"></div>
-                <button
-                    type="button"
-                    class="small auth-menu"
-                    aria-label="Меню"
-                    @click="openSettings()"
-                >
-                    ☰
-                </button>
+                <div class="auth-diag" aria-hidden="true"></div>
+                <img src="/assets/skull.png" class="auth-skull" alt="" />
+                <nav class="auth-rail" aria-label="Разделы Alt">
+                    <button type="button" class="small rail-btn" @click="openSettings('about')">
+                        О проекте
+                    </button>
+                    <button type="button" class="small rail-btn" @click="openSettings('team')">
+                        Разработка
+                    </button>
+                    <button type="button" class="small rail-btn rail-fx" @click="cycleLoginEffect">
+                        <span aria-hidden="true">⌁</span> {{ effectLabel }}
+                    </button>
+                    <button
+                        type="button"
+                        class="small rail-btn rail-menu"
+                        aria-label="Меню"
+                        @click="openSettings()"
+                    >
+                        ☰
+                    </button>
+                </nav>
 
                 <main class="auth-panel">
                     <nav class="auth-choice" aria-label="Доступ к аккаунту">
@@ -527,12 +540,13 @@
                         <label class="settings-row">
                             Тема
                             <select v-model="appearance.bg">
+                                <option value="auto">По экрану</option>
                                 <option value="dark">Тёмная</option>
                                 <option value="light">Светлая</option>
                                 <option value="matrix">Матрица</option>
                             </select>
                         </label>
-                        <template v-if="appearance.bg === 'matrix'">
+                        <template v-if="appearance.bg === 'matrix' || appearance.bg === 'auto'">
                             <label class="settings-row">
                                 Качество фона
                                 <select v-model="appearance.quality">
