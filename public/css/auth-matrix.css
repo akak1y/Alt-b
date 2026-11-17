@@ -432,6 +432,25 @@ body.bg-light {
     font-size: 0.95rem;
 }
 
+.team-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.team-list li {
+    padding-block: 14px;
+    border-top: 1px solid var(--line-soft);
+}
+
+.team-list strong {
+    color: var(--accent);
+}
+
+.team-list p {
+    margin: 5px 0 0;
+}
+
 .settings-row {
     min-height: 40px;
 }
