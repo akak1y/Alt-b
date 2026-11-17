@@ -53,6 +53,31 @@ export const getState = () => snapshot();
 /** Адрес Synapse, заданный в matrix-core.js. */
 export const getHomeserver = () => HOMESERVER;
 
+/** Запрос к защищённому API Alt с текущей пользовательской сессией. */
+export async function invitationRequest(path, options = {}) {
+    const session = store.load();
+    if (!session?.accessToken) throw new Error('Для управления приглашениями необходимо войти.');
+    let response;
+    try {
+        response = await fetch(path, {
+            ...options,
+            headers: {
+                Authorization: `Bearer ${session.accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            cache: 'no-store',
+            // Сервер последовательно выполняет whoami и запрос к Admin API.
+            signal: AbortSignal.timeout(25_000),
+        });
+    } catch {
+        throw new Error('Сервер Alt недоступен. Попробуйте позже.');
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok)
+        throw new Error(data.error || 'Не удалось выполнить действие с приглашением.');
+    return data;
+}
+
 /** Перечитывает комнаты SDK и превращает их в данные для интерфейса. */
 function refreshRooms() {
     if (!client) return;

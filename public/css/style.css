@@ -1154,6 +1154,116 @@ button.linklike {
     }
 }
 
+/* Окно регистрационных приглашений; не относится к приглашению в комнату. */
+.registration-invite-button {
+    width: 100%;
+    margin-bottom: 14px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.invitation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgb(0 0 0 / 65%);
+}
+
+.invitation-dialog {
+    width: min(100%, 800px);
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+    padding: 24px;
+    border: 1px solid var(--stroke);
+    border-radius: 18px;
+    background: var(--glass);
+    backdrop-filter: blur(22px);
+}
+
+.invitation-header,
+.invitation-toolbar,
+.invitation-link,
+.invitation-create {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.invitation-header {
+    justify-content: space-between;
+}
+.invitation-header h2 {
+    margin: 0;
+    font-size: 22px;
+}
+.invitation-create label {
+    display: grid;
+    gap: 6px;
+}
+.invitation-dialog select,
+.invitation-dialog input {
+    min-width: 0;
+    max-width: 100%;
+    padding: 10px;
+    border: 1px solid var(--stroke);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--text);
+    font: inherit;
+}
+.invitation-dialog select option {
+    background: #1a1040;
+    color: #fff;
+}
+.invitation-dialog select:focus-visible {
+    outline: 2px solid var(--mint);
+}
+.invitation-link input {
+    flex: 1 1 220px;
+}
+.invitation-create .primary {
+    padding: 12px;
+}
+.invitation-list {
+    padding: 0;
+    list-style: none;
+}
+.invitation-list li,
+.invitation-created {
+    padding: 14px;
+    margin-bottom: 14px;
+    border: 1px solid var(--stroke);
+    border-radius: 12px;
+}
+.invitation-link {
+    margin-top: 10px;
+}
+.invitation-list dl {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+.invitation-list dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+    .registration-invite-button {
+        font-size: 10px;
+        padding: 6px 2px;
+    }
+    .invitation-dialog {
+        padding: 14px;
+    }
+}
+
 /* Учитываем системное пожелание отключить движение декоративных элементов. */
 @media (prefers-reduced-motion: reduce) {
     body::before,

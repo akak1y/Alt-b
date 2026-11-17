@@ -1,8 +1,10 @@
 const path = require('node:path');
 const express = require('express');
+const { createInvitationsRouter } = require('./lib/invitations');
 
 // Сервер Alt раздаёт готовые файлы из public/; вход и переписка выполняются
-// в браузере напрямую через Synapse. Этот файл НЕ хранит учётные записи.
+// в браузере напрямую через Synapse. Только управление регистрационными
+// приглашениями проходит через защищённый серверный API.
 const app = express();
 
 // Сохраняем ограничения браузера: клиент обращается к Synapse напрямую.
@@ -33,6 +35,8 @@ app.use((req, res, next) => {
     );
     next();
 });
+
+app.use('/api/invitations', createInvitationsRouter());
 
 // Отдаём index.html, стили, изображения и собранный public/js/alt.js.
 app.use(express.static(path.join(__dirname, 'public')));
