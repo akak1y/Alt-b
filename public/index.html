@@ -5,12 +5,11 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Alt — общение без лишнего</title>
         <link rel="stylesheet" href="/css/style.css" />
+        <link rel="stylesheet" href="/css/auth-matrix.css" />
     </head>
     <body>
         <div id="app">
             <div v-if="s.phase === 'idle'" class="auth-screen">
-                <div class="auth-grid" aria-hidden="true"></div>
-                <div class="auth-scanline" aria-hidden="true"></div>
                 <header class="auth-logo-wrapper">
                     <h1 class="visually-hidden">ALT</h1>
                     <img
@@ -22,15 +21,17 @@
                     />
                     <span v-else class="auth-logo-fallback" aria-hidden="true">ALT</span>
                 </header>
-                <div class="auth-visualizer" aria-hidden="true">
-                    <span v-for="n in 17" :key="n"></span>
-                </div>
-                <div class="auth-diagonal" aria-hidden="true"></div>
+
+                <div class="auth-barcode" aria-hidden="true"></div>
+                <div class="auth-diag" aria-hidden="true"></div>
+
                 <div class="auth-skull" aria-hidden="true">
                     <img src="/assets/skull.png" alt="" />
                 </div>
 
                 <main class="auth-panel">
+                    <i class="panel-edge" aria-hidden="true"></i>
+
                     <form class="auth-box" @submit.prevent="doLogin">
                         <h2>Вход</h2>
                         <div class="auth-fields">
@@ -91,11 +92,6 @@
                     </form>
                     <div v-if="err || s.error" class="err" role="alert">{{ err || s.error }}</div>
                 </main>
-
-                <div class="auth-rail" aria-hidden="true">
-                    <span>ALT</span><span>MATRIX</span><span class="rail-line"></span>
-                </div>
-                <div class="auth-bottom" aria-hidden="true"></div>
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">

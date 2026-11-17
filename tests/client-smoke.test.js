@@ -10,8 +10,10 @@ describe('собранный веб-клиент', () => {
 
     it('оформляет существующие части интерфейса и узкие экраны', () => {
         const css = readFileSync('public/css/style.css', 'utf8');
+        const authCss = readFileSync('public/css/auth-matrix.css', 'utf8');
+        expect(authCss).toContain('.auth-box');
+        expect(readFileSync('public/index.html', 'utf8')).toContain('/css/auth-matrix.css');
         for (const selector of [
-            '.auth-box',
             '.layout',
             '.sidebar',
             '.side-item',
