@@ -2,7 +2,7 @@
 const MAX_CANVAS_PIXELS = 1024 * 1024;
 const SLOW_FRAME_MS = 22;
 
-export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded }) {
+export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded, onRenderStats }) {
     const canvas = document.createElement('canvas');
     canvas.id = 'matrix-bg';
     canvas.setAttribute('aria-hidden', 'true');
@@ -71,7 +71,8 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded }) {
     let ema = 8,
         upStreak = 0,
         slowStreak = 0,
-        fpsWindow = 0;
+        fpsWindow = 0,
+        frames = 0;
 
     const params = { speed: 1, glow: 1, density: 1 };
     const SPEED = [0.7, 1.7, 3.1];
@@ -333,8 +334,18 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded }) {
         const t0 = performance.now();
         render(dt);
         ema = ema * 0.9 + (performance.now() - t0) * 0.1;
+        frames++;
 
-        if (now - fpsWindow >= 1000) {
+        const elapsed = now - fpsWindow;
+        if (elapsed >= 1000) {
+            if (auth) {
+                onRenderStats({
+                    fps: Math.round((frames * 1000) / elapsed),
+                    quality: TIERS[tier].name,
+                    scale,
+                });
+            }
+            frames = 0;
             fpsWindow = now;
             if (ema > SLOW_FRAME_MS) {
                 upStreak = 0;
@@ -375,11 +386,13 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded }) {
         upStreak = 0;
         lastFrame = performance.now();
         fpsWindow = lastFrame;
+        frames = 0;
         raf = requestAnimationFrame(loop);
     }
     function stop() {
         running = false;
         cancelAnimationFrame(raf);
+        onRenderStats(null);
     }
     function staticFrame() {
         stop();
@@ -417,6 +430,7 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded }) {
     return {
         update(prefs, isAuth) {
             const resetTier = auth !== isAuth || quality !== prefs.quality;
+            if (auth && !isAuth) onRenderStats(null);
             auth = isAuth;
             targetDim = auth ? 1 : 0.5;
             animations = prefs.anim;

@@ -399,6 +399,11 @@ body.bg-light {
 
 .auth-status-mode {
     color: var(--text);
+    text-transform: none;
+}
+
+.auth-status-stats {
+    white-space: nowrap;
 }
 
 .auth-status button {

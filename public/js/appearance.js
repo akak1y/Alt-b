@@ -8,6 +8,7 @@ const level = (value) => (Number.isInteger(value) && value >= 0 && value <= 2 ? 
 const factor = (value) => (typeof value === 'number' && value >= 0 && value <= 3 ? value : 1);
 const qualityLevels = ['auto', 0, 1, 2];
 const qualityLabels = ['Авто', 'Низкое', 'Среднее', 'Высокое'];
+const formatScale = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
 
 export function useAppearance(isAuth) {
     let saved;
@@ -39,7 +40,7 @@ export function useAppearance(isAuth) {
     });
     const backgroundLabel = computed(
         () =>
-            ({ dark: 'Тёмный фон', light: 'Светлый фон', matrix: 'Матрица' })[
+            ({ dark: 'Тёмный фон', light: 'Светлый фон', matrix: 'Matrix' })[
                 activeBackground.value
             ],
     );
@@ -47,6 +48,7 @@ export function useAppearance(isAuth) {
     const qualityLabel = computed(
         () => qualityLabels[qualityLevels.indexOf(appearance.value.quality)],
     );
+    const renderStats = ref('');
 
     function reportBackgroundLimit() {
         backgroundWarning.value = resourceLimit.value;
@@ -90,6 +92,11 @@ export function useAppearance(isAuth) {
             if (mode === 'matrix' && typeof window.CanvasRenderingContext2D === 'function') {
                 background ??= createMatrixBackground({
                     lowAutoQuality: !(memory > 2),
+                    onRenderStats(stats) {
+                        renderStats.value = stats
+                            ? `${stats.fps} FPS · ${stats.quality} · ${formatScale.format(stats.scale)}×`
+                            : '';
+                    },
                     onBudgetExceeded() {
                         resourceLimit.value =
                             'Фон отключён из-за высокой нагрузки. Включена тёмная тема.';
@@ -123,6 +130,7 @@ export function useAppearance(isAuth) {
         cycleLoginQuality,
         effectLabel,
         qualityLabel,
+        renderStats,
         reportBackgroundLimit,
         selectBackground,
     };

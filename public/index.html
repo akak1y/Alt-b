@@ -141,6 +141,7 @@
                             Качество: {{ qualityLabel }}
                         </button>
                     </div>
+                    <span v-if="renderStats" class="auth-status-stats">{{ renderStats }}</span>
                     <p class="background-warning" role="status">{{ backgroundWarning }}</p>
                 </footer>
             </div>
@@ -556,7 +557,7 @@
                                 <option value="auto">По экрану</option>
                                 <option value="dark">Тёмная</option>
                                 <option value="light">Светлая</option>
-                                <option value="matrix">Матрица</option>
+                                <option value="matrix">Matrix</option>
                             </select>
                         </label>
                         <template v-if="appearance.bg === 'matrix' || appearance.bg === 'auto'">

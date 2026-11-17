@@ -65,6 +65,7 @@ describe('собранный веб-клиент', () => {
             expect(dom.window.document.querySelector('.settings-links')).toBeNull();
             const footer = dom.window.document.querySelector('footer.auth-status');
             expect(footer.querySelector('.auth-status-brand').textContent).toContain('ALT');
+            expect(footer.querySelector('.auth-status-mode').textContent).toBe('Matrix');
             expect(footer.querySelector('.auth-status-controls').textContent).toContain('Сбой');
             expect(footer.querySelector('.auth-status-controls').textContent).toContain('Авто');
             expect(dom.window.document.querySelector('label[for="auth-password"]')).not.toBeNull();
