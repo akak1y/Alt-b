@@ -371,6 +371,7 @@ body.bg-light {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
     gap: 8px 16px;
     width: calc(100% + (var(--auth-gutter) - 12px) * 2);
     padding: 8px 16px;
@@ -388,6 +389,7 @@ body.bg-light {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
     gap: 8px;
 }
 
@@ -428,6 +430,7 @@ body.bg-light {
 
 .auth-status .background-warning:not(:empty) {
     flex-basis: 100%;
+    text-align: center;
 }
 
 .settings-panel {
