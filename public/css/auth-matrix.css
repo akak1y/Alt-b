@@ -210,15 +210,14 @@ body.bg-light {
     right: clamp(20px, 7vw, 100px);
     top: 24%;
     width: clamp(160px, 23vw, 320px);
-    opacity: 0.72;
-    filter: var(--logo-shadow);
+    filter: var(--logo-shadow) drop-shadow(0 0 16px rgb(113 84 255 / 46%));
     pointer-events: none;
     animation: auth-skull-float 6s ease-in-out infinite;
 }
 
 @keyframes auth-skull-float {
     50% {
-        transform: translateY(-10px);
+        transform: translateY(-17px);
     }
 }
 
