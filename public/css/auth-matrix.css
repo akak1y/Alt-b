@@ -555,8 +555,13 @@ body.bg-light {
     color: var(--text);
 }
 
+@media (max-width: 1024px), (max-height: 680px) {
+    .auth-skull {
+        display: none;
+    }
+}
+
 @media (max-width: 760px) {
-    .auth-skull,
     .auth-diag {
         display: none;
     }
