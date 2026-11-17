@@ -328,12 +328,13 @@ export async function joinRoom(roomId) {
 }
 /** Запрашивает до 30 предыдущих событий комнаты и обновляет её отображение. */
 export async function loadOlder(roomId) {
-    if (!client) return;
+    if (!client) return false;
     const room = client.getRooms().find((r) => r.roomId === roomId);
-    if (!room) return;
+    if (!room || room.oldState.paginationToken === null) return false;
     await client.scrollback(room, 30);
     refreshRooms();
     notify();
+    return room.oldState.paginationToken !== null;
 }
 /** Отправляет текст в выбранную комнату; без клиента отправка запрещена. */
 export async function sendText(roomId, text) {

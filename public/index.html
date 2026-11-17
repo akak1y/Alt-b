@@ -269,7 +269,6 @@
                                 >{{ active.name }}</span
                             >
                             <span v-if="active.isEncrypted" class="enc-badge">🔒 зашифрована</span>
-                            <button class="small right" @click="loadOlder">История</button>
                         </div>
 
                         <div
@@ -280,7 +279,33 @@
                             {{ s.cryptoError }}
                         </div>
 
-                        <div class="messages-area" ref="messagesBox">
+                        <div
+                            :key="active.roomId"
+                            class="messages-area"
+                            ref="messagesBox"
+                            tabindex="0"
+                            aria-label="Сообщения комнаты"
+                            @scroll.passive="onMessagesScroll"
+                        >
+                            <div
+                                class="history-status"
+                                v-if="historyPending || historyError || historyNeedsMore"
+                            >
+                                <span v-if="historyPending" role="status"
+                                    >Загружаем сообщения…</span
+                                >
+                                <span v-else-if="historyError" role="alert"
+                                    >{{ historyError }}</span
+                                >
+                                <button
+                                    v-if="!historyPending"
+                                    type="button"
+                                    class="small"
+                                    @click="loadOlder"
+                                >
+                                    {{ historyError ? 'Повторить' : 'Предыдущие сообщения' }}
+                                </button>
+                            </div>
                             <div
                                 v-for="m in active.messages"
                                 :key="m.id"

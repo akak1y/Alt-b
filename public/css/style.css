@@ -551,10 +551,21 @@ input::placeholder {
 .messages-area {
     flex: 1;
     overflow-y: auto;
+    overflow-anchor: none;
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+
+.history-status {
+    align-self: center;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
 }
 
 .messages-area::-webkit-scrollbar {

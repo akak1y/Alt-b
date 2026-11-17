@@ -62,6 +62,11 @@ createApp({
         const err = ref('');
         const draft = ref('');
         const messagesBox = ref(null);
+        const historyPending = ref(false);
+        const historyError = ref('');
+        const historyNeedsMore = ref(false);
+        let historyHasMore = true;
+        let historyRequest = null;
 
         function showAuthForm(showRegistration) {
             registration.value = showRegistration;
@@ -94,15 +99,26 @@ createApp({
                 })[s.value.connection] || s.value.connection,
         );
 
-        // После появления нового сообщения прокручиваем видимую переписку вниз.
-        // nextTick ждёт, пока Vue добавит сообщение в HTML.
         watch(
-            () => active.value?.messages.length,
-            () => {
-                nextTick(() => {
-                    if (messagesBox.value)
-                        messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
-                });
+            [() => active.value?.roomId, () => active.value?.messages.length],
+            async ([roomId], [previousRoomId]) => {
+                const roomChanged = roomId !== previousRoomId;
+                if (roomChanged) {
+                    historyRequest = null;
+                    historyHasMore = true;
+                    historyPending.value = false;
+                    historyError.value = '';
+                    historyNeedsMore.value = false;
+                }
+                const box = messagesBox.value;
+                const follow = box && box.scrollHeight - box.scrollTop - box.clientHeight < 48;
+                if (!roomId || (!roomChanged && (!follow || historyPending.value))) return;
+                await nextTick();
+                if (roomId !== active.value?.roomId || !messagesBox.value) return;
+                const currentBox = messagesBox.value;
+                currentBox.scrollTop = currentBox.scrollHeight;
+                if (roomChanged && currentBox.scrollHeight <= currentBox.clientHeight)
+                    void loadOlder();
             },
         );
 
@@ -163,9 +179,39 @@ createApp({
         function join(r) {
             mc.joinRoom(r.roomId);
         }
-        // Просит предыдущие события только для выбранной комнаты.
-        function loadOlder() {
-            if (active.value) mc.loadOlder(active.value.roomId);
+        async function loadOlder() {
+            const roomId = active.value?.roomId;
+            const box = messagesBox.value;
+            if (!roomId || !box || !historyHasMore || historyRequest) return;
+            const request = { roomId };
+            historyRequest = request;
+            historyError.value = '';
+            historyNeedsMore.value = false;
+            const height = box.scrollHeight;
+            const top = box.scrollTop;
+            historyPending.value = true;
+            try {
+                const more = await mc.loadOlder(roomId);
+                if (historyRequest !== request) return;
+                historyHasMore = more;
+            } catch {
+                if (historyRequest !== request) return;
+                historyError.value = 'Не удалось загрузить предыдущие сообщения.';
+            } finally {
+                if (historyRequest === request) {
+                    historyPending.value = false;
+                    await nextTick();
+                    if (historyRequest === request) {
+                        box.scrollTop = top + box.scrollHeight - height;
+                        historyNeedsMore.value =
+                            historyHasMore && box.scrollHeight <= box.clientHeight;
+                        historyRequest = null;
+                    }
+                }
+            }
+        }
+        function onMessagesScroll(event) {
+            if (event.currentTarget.scrollTop <= 36 && !historyError.value) void loadOlder();
         }
 
         /** Отправляет непустой текст в открытую комнату и очищает поле после успеха. */
@@ -267,6 +313,10 @@ createApp({
             backToRooms,
             join,
             loadOlder,
+            onMessagesScroll,
+            historyPending,
+            historyError,
+            historyNeedsMore,
             send,
             doCreateRoom,
             doInvite,
