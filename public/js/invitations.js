@@ -1,5 +1,7 @@
 import { ref, computed, onUnmounted, nextTick } from 'vue';
 
+export const isRegistrationUsername = (name) => /^[a-z0-9._=+/-]+$/.test(name);
+
 // Окно использует только пользовательскую сессию. Административный ключ
 // существует исключительно в lib/invitations.js на сервере.
 export function useInvitations(request) {
@@ -10,6 +12,8 @@ export function useInvitations(request) {
     const invitations = ref([]);
     const invitationHours = ref(24);
     const invitationUses = ref(1);
+    const invitationUsername = ref('');
+    let createdUsername = '';
     const invitationFilter = ref('active');
     const createdInvitation = ref(null);
     const invitationClose = ref(null);
@@ -86,6 +90,8 @@ export function useInvitations(request) {
         invitationsBusy.value = false;
         invitations.value = [];
         createdInvitation.value = null;
+        createdUsername = '';
+        invitationUsername.value = '';
         invitationsError.value = '';
         invitationsNotice.value = '';
         opener?.focus();
@@ -94,15 +100,26 @@ export function useInvitations(request) {
 
     async function createInvitation() {
         await action(async (valid) => {
+            const username = invitationUses.value === 1 ? invitationUsername.value.trim() : '';
+            if (username && !isRegistrationUsername(username))
+                throw new Error('Введите допустимый логин для личного приглашения.');
             const data = await request('/api/invitations', {
                 method: 'POST',
                 body: JSON.stringify({ hours: invitationHours.value, uses: invitationUses.value }),
             });
             if (!valid()) return;
+            createdUsername = username;
             createdInvitation.value = data.invitation;
+            invitationUsername.value = '';
             invitations.value = [data.invitation, ...invitations.value];
             invitationFilter.value = 'active';
         });
+    }
+    function invitationLink(item) {
+        if (!createdUsername || item.token !== createdInvitation.value?.token) return item.link;
+        const link = new URL(item.link);
+        link.hash = new URLSearchParams({ registration_username: createdUsername }).toString();
+        return link.href;
     }
     async function revokeInvitation(item) {
         await action(async (valid) => {
@@ -137,7 +154,7 @@ export function useInvitations(request) {
             )
                 throw new Error('Приглашение уже недействительно. Обновите список.');
             try {
-                await navigator.clipboard.writeText(data.invitation.link);
+                await navigator.clipboard.writeText(invitationLink(data.invitation));
             } catch {
                 throw new Error('Браузер не разрешил копирование. Выделите ссылку вручную.');
             }
@@ -171,6 +188,8 @@ export function useInvitations(request) {
         invitationsNotice,
         invitationHours,
         invitationUses,
+        invitationUsername,
+        invitationLink,
         invitationFilter,
         createdInvitation,
         invitationClose,

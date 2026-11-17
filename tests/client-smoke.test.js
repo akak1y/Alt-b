@@ -90,4 +90,27 @@ describe('собранный веб-клиент', () => {
             dom.window.close();
         }
     });
+
+    it('по личной ссылке показывает только поле пароля в выбранной регистрации', () => {
+        const html = readFileSync('public/index.html', 'utf8');
+        const bundle = readFileSync('public/js/alt.js', 'utf8');
+        const dom = new JSDOM(html, {
+            url: 'http://localhost:3000/?registration_token=CODE#registration_username=alice',
+            runScripts: 'outside-only',
+        });
+        try {
+            dom.window.eval(bundle);
+            const { document, location } = dom.window;
+            expect(document.querySelector('.auth-choice button:last-child').ariaPressed).toBe(
+                'true',
+            );
+            expect(document.querySelector('.personal-invitation strong').textContent).toBe('alice');
+            expect(
+                Array.from(document.querySelectorAll('.auth-register input'), (i) => i.type),
+            ).toEqual(['password']);
+            expect(location.search + location.hash).toBe('');
+        } finally {
+            dom.window.close();
+        }
+    });
 });

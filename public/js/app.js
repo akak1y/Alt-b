@@ -1,7 +1,8 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
-import { useInvitations } from './invitations.js';
+import { isRegistrationUsername, useInvitations } from './invitations.js';
+import { useAppearance } from './appearance.js';
 
 // Входная точка интерфейса: Vue связывает шаблон public/index.html с действиями
 // из matrix-client.js. Здесь хранятся значения полей и видимые ошибки, но нет
@@ -10,6 +11,16 @@ createApp({
     render,
     setup() {
         const invitationManager = useInvitations(mc.invitationRequest);
+        const appearance = useAppearance();
+        const settingsDialog = ref(null);
+        const settingsPage = ref('menu');
+        function openSettings() {
+            settingsPage.value = 'menu';
+            settingsDialog.value.showModal();
+        }
+        function closeSettings() {
+            settingsDialog.value.close();
+        }
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
@@ -30,10 +41,20 @@ createApp({
         // Это код регистрации пользователя, а не приглашение в комнату.
         const invitation =
             inviteUrl.searchParams.get('registration_token') || inviteUrl.searchParams.get('token');
+        const inviteFragment = new URLSearchParams(inviteUrl.hash.slice(1));
+        const suggestedLogin = inviteFragment.get('registration_username') || '';
+        const personalLogin =
+            invitation && isRegistrationUsername(suggestedLogin) ? suggestedLogin : '';
+        const registration = ref(Boolean(invitation));
+        registerUsername.value = personalLogin;
         const token = ref(invitation || '');
         if (invitation) {
             inviteUrl.searchParams.delete('registration_token');
             inviteUrl.searchParams.delete('token');
+            if (inviteFragment.has('registration_username')) {
+                inviteFragment.delete('registration_username');
+                inviteUrl.hash = inviteFragment.toString();
+            }
             // Не оставляем код приглашения в адресной строке и истории браузера.
             window.history.replaceState(null, '', inviteUrl);
         }
@@ -41,6 +62,11 @@ createApp({
         const err = ref('');
         const draft = ref('');
         const messagesBox = ref(null);
+
+        function showAuthForm(showRegistration) {
+            registration.value = showRegistration;
+            err.value = '';
+        }
 
         const showCreate = ref(false);
         const roomsCollapsed = ref(false);
@@ -116,6 +142,7 @@ createApp({
         // Очищает видимые поля после выхода; сохранённую сессию удаляет mc.logout.
         function logout() {
             invitationManager.closeInvitations();
+            if (settingsDialog.value.open) closeSettings();
             mc.logout();
             username.value = '';
             password.value = '';
@@ -211,6 +238,14 @@ createApp({
             registerPassword,
             logoFailed,
             token,
+            registration,
+            personalLogin,
+            showAuthForm,
+            appearance,
+            settingsDialog,
+            settingsPage,
+            openSettings,
+            closeSettings,
             busy,
             err,
             draft,

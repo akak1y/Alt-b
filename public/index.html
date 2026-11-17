@@ -23,16 +23,33 @@
                 </header>
 
                 <div class="auth-barcode" aria-hidden="true"></div>
-                <div class="auth-diag" aria-hidden="true"></div>
-
-                <div class="auth-skull" aria-hidden="true">
-                    <img src="/assets/skull.png" alt="" />
-                </div>
+                <button
+                    type="button"
+                    class="small auth-menu"
+                    aria-label="Меню"
+                    @click="openSettings"
+                >
+                    ☰
+                </button>
 
                 <main class="auth-panel">
-                    <i class="panel-edge" aria-hidden="true"></i>
-
-                    <form class="auth-box" @submit.prevent="doLogin">
+                    <nav class="auth-choice" aria-label="Доступ к аккаунту">
+                        <button
+                            type="button"
+                            :aria-pressed="!registration"
+                            @click="showAuthForm(false)"
+                        >
+                            Вход
+                        </button>
+                        <button
+                            type="button"
+                            :aria-pressed="registration"
+                            @click="showAuthForm(true)"
+                        >
+                            Регистрация
+                        </button>
+                    </nav>
+                    <form v-show="!registration" class="auth-box" @submit.prevent="doLogin">
                         <h2>Вход</h2>
                         <div class="auth-fields">
                             <div>
@@ -58,10 +75,17 @@
                         <button type="submit" class="primary" :disabled="busy">ВХОД</button>
                     </form>
 
-                    <form class="auth-box auth-register" @submit.prevent="doRegister">
+                    <form
+                        v-show="registration"
+                        class="auth-box auth-register"
+                        @submit.prevent="doRegister"
+                    >
                         <h2>Регистрация</h2>
+                        <p v-if="personalLogin" class="personal-invitation">
+                            Личное приглашение для <strong>{{ personalLogin }}</strong>
+                        </p>
                         <div class="auth-fields">
-                            <div>
+                            <div v-if="!personalLogin">
                                 <label for="register-username">Логин</label>
                                 <input
                                     id="register-username"
@@ -81,8 +105,9 @@
                                 />
                             </div>
                         </div>
-                        <label for="auth-token">Код приглашения</label>
+                        <label v-if="!personalLogin" for="auth-token">Код приглашения</label>
                         <input
+                            v-if="!personalLogin"
                             id="auth-token"
                             v-model="token"
                             placeholder="Код приглашения"
@@ -221,7 +246,9 @@
                         <span class="user-name" :title="s.myName || s.myUserId"
                             >{{ s.myName || s.myUserId }}</span
                         >
-                        <button type="button" class="small" @click="logout">Выйти</button>
+                        <button type="button" class="small" aria-label="Меню" @click="openSettings">
+                            ☰
+                        </button>
                     </div>
                 </aside>
 
@@ -346,6 +373,10 @@
                                 <option :value="5">5</option>
                             </select>
                         </label>
+                        <label v-if="invitationUses === 1">
+                            Логин получателя (необязательно)
+                            <input v-model.trim="invitationUsername" :disabled="invitationsBusy" />
+                        </label>
                         <button class="primary" :disabled="invitationsBusy">
                             Создать приглашение
                         </button>
@@ -357,7 +388,7 @@
                         >
                         <div class="invitation-link">
                             <input
-                                :value="createdInvitation.link"
+                                :value="invitationLink(createdInvitation)"
                                 readonly
                                 aria-label="Новая ссылка приглашения"
                             />
@@ -391,7 +422,7 @@
                             <strong>{{ invitationStatusLabel(item) }}</strong>
                             <div class="invitation-link">
                                 <input
-                                    :value="item.link"
+                                    :value="invitationLink(item)"
                                     readonly
                                     aria-label="Ссылка приглашения"
                                 />
@@ -432,6 +463,74 @@
                     </p>
                 </section>
             </div>
+            <dialog ref="settingsDialog" class="settings-panel" aria-labelledby="settings-title">
+                <header class="settings-header">
+                    <button
+                        v-if="settingsPage !== 'menu'"
+                        type="button"
+                        class="small"
+                        @click="settingsPage = 'menu'"
+                    >
+                        ← Меню
+                    </button>
+                    <h2 id="settings-title">
+                        {{ { menu: 'Меню', about: 'О проекте', team: 'Разработка' }[settingsPage] }}
+                    </h2>
+                    <button
+                        type="button"
+                        class="small"
+                        @click="closeSettings"
+                        aria-label="Закрыть меню"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div v-if="settingsPage === 'menu'">
+                    <section class="settings-section">
+                        <h3>Внешний вид</h3>
+                        <label class="settings-row">
+                            Тема
+                            <select v-model="appearance.bg">
+                                <option value="dark">Тёмная</option>
+                                <option value="light">Светлая</option>
+                            </select>
+                        </label>
+                        <label class="settings-row">
+                            Анимации
+                            <input type="checkbox" v-model="appearance.anim" />
+                        </label>
+                    </section>
+                    <nav class="settings-section settings-links" aria-label="Информация об Alt">
+                        <button type="button" class="small" @click="settingsPage = 'about'">
+                            О проекте
+                        </button>
+                        <button type="button" class="small" @click="settingsPage = 'team'">
+                            Разработка
+                        </button>
+                    </nav>
+                    <section v-if="s.phase === 'ready'" class="settings-section">
+                        <h3>Аккаунт</h3>
+                        <p class="settings-name">{{ s.myName || s.myUserId }}</p>
+                        <button type="button" class="settings-logout" @click="logout">
+                            Выйти из аккаунта
+                        </button>
+                    </section>
+                </div>
+                <section v-else-if="settingsPage === 'about'" class="settings-section">
+                    <p>Alt — мессенджер нового поколения для личных и командных разговоров.</p>
+                    <p>
+                        Общайся в комнатах, приглашай друзей и защищай переписку сквозным
+                        шифрованием.
+                    </p>
+                </section>
+                <section v-else class="settings-section">
+                    <p>Alt разрабатывают студенты-энтузиасты.</p>
+                    <ul>
+                        <li>Разработчик 1 — Фамилия И. О.</li>
+                        <li>Разработчик 2 — Фамилия И. О.</li>
+                    </ul>
+                </section>
+            </dialog>
         </div>
 
         <script src="/js/alt.js" defer></script>
