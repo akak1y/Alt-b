@@ -1,5 +1,8 @@
 // Адаптация Canvas-фона Gubga из design2 (ff69257).
-export function createMatrixBackground() {
+const MAX_CANVAS_PIXELS = 1024 * 1024;
+const SLOW_FRAME_MS = 22;
+
+export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded }) {
     const canvas = document.createElement('canvas');
     canvas.id = 'matrix-bg';
     canvas.setAttribute('aria-hidden', 'true');
@@ -21,8 +24,8 @@ export function createMatrixBackground() {
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
     const TIERS = [
-        { name: 'НИЗКОЕ', res: 0.5, fps: 24, stripes: 56, floor: 12, cols: 6, glow: false },
-        { name: 'СРЕДНЕЕ', res: 0.7, fps: 30, stripes: 84, floor: 16, cols: 8, glow: true },
+        { name: 'НИЗКОЕ', res: 0.5, fps: 18, stripes: 56, floor: 12, cols: 6, glow: false },
+        { name: 'СРЕДНЕЕ', res: 0.7, fps: 24, stripes: 84, floor: 16, cols: 8, glow: true },
         { name: 'ВЫСОКОЕ', res: 1.0, fps: 30, stripes: 120, floor: 20, cols: 10, glow: true },
     ];
 
@@ -53,7 +56,7 @@ export function createMatrixBackground() {
     let W = 0,
         H = 0,
         scale = 0.7;
-    let qualityMode = 'auto';
+    let quality;
     let tier = 1;
     let level = 0;
     let auth = true;
@@ -67,6 +70,7 @@ export function createMatrixBackground() {
         raf = 0;
     let ema = 8,
         upStreak = 0,
+        slowStreak = 0,
         fpsWindow = 0;
 
     const params = { speed: 1, glow: 1, density: 1 };
@@ -93,7 +97,7 @@ export function createMatrixBackground() {
         sp: rand(18, 70),
         a: rand(0.05, 0.13),
         c: Math.random() < 0.6 ? 1 : 4,
-        cv: document.createElement('canvas'),
+        cv: Object.assign(document.createElement('canvas'), { width: 16, height: 112 }),
         next: rand(0, 0.8),
     }));
 
@@ -111,9 +115,8 @@ export function createMatrixBackground() {
     }
 
     function regenStrip(col) {
-        col.cv.width = 16;
-        col.cv.height = 112;
         const c = col.cv.getContext('2d');
+        c.clearRect(0, 0, 16, 112);
         c.font = '12px monospace';
         c.fillStyle = `rgb(${RGB[col.c][0]},${RGB[col.c][1]},${RGB[col.c][2]})`;
         for (let j = 0; j < 7; j++) {
@@ -164,9 +167,9 @@ export function createMatrixBackground() {
     function resize() {
         W = window.innerWidth;
         H = window.innerHeight;
-        scale = TIERS[auth ? tier : 0].res;
-        canvas.width = Math.max(2, Math.round(W * scale));
-        canvas.height = Math.max(2, Math.round(H * scale));
+        scale = Math.min(TIERS[auth ? tier : 0].res, Math.sqrt(MAX_CANVAS_PIXELS / (W * H)));
+        canvas.width = Math.max(1, Math.floor(W * scale));
+        canvas.height = Math.max(1, Math.floor(H * scale));
         buildLayer();
         for (const c of cols) regenStrip(c);
         if (!running) render(0);
@@ -333,11 +336,22 @@ export function createMatrixBackground() {
 
         if (now - fpsWindow >= 1000) {
             fpsWindow = now;
-            if (qualityMode === 'auto' && auth) {
+            if (ema > SLOW_FRAME_MS) {
+                upStreak = 0;
+                if (auth && tier > 0) {
+                    setTier(tier - 1);
+                } else if (++slowStreak >= 3) {
+                    stop();
+                    onBudgetExceeded();
+                }
+                return;
+            }
+            slowStreak = 0;
+            if (quality === 'auto' && auth) {
                 if (ema > 11 && tier > 0) {
                     upStreak = 0;
                     setTier(tier - 1);
-                } else if (ema < 4.5 && tier < 2) {
+                } else if (!lowAutoQuality && ema < 4.5 && tier < 2) {
                     if (++upStreak >= 3) {
                         upStreak = 0;
                         setTier(tier + 1);
@@ -357,6 +371,8 @@ export function createMatrixBackground() {
     function start() {
         if (running) return;
         running = true;
+        slowStreak = 0;
+        upStreak = 0;
         lastFrame = performance.now();
         fpsWindow = lastFrame;
         raf = requestAnimationFrame(loop);
@@ -400,18 +416,24 @@ export function createMatrixBackground() {
 
     return {
         update(prefs, isAuth) {
-            const layoutChanged = auth !== isAuth;
+            const resetTier = auth !== isAuth || quality !== prefs.quality;
             auth = isAuth;
             targetDim = auth ? 1 : 0.5;
             animations = prefs.anim;
             level = prefs.fx;
-            qualityMode = prefs.quality === 'auto' ? 'auto' : 'manual';
+            quality = prefs.quality;
             params.speed = prefs.speed;
             params.glow = prefs.glow;
             params.density = prefs.density;
-            const nextTier =
-                qualityMode === 'auto' ? (window.innerWidth < 700 ? 0 : 1) : prefs.quality;
-            if (!W || layoutChanged || nextTier !== tier) setTier(nextTier);
+            if (resetTier) {
+                setTier(
+                    quality === 'auto'
+                        ? lowAutoQuality || window.innerWidth < 700
+                            ? 0
+                            : 1
+                        : quality,
+                );
+            }
             applyMotion();
         },
         destroy() {
@@ -422,6 +444,8 @@ export function createMatrixBackground() {
             reducedMotion?.removeEventListener('change', applyMotion);
             canvas.remove();
             vig.remove();
+            canvas.width = 0;
+            lay.width = 0;
         },
     };
 }

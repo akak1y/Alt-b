@@ -32,9 +32,6 @@
                     <button type="button" class="small rail-btn" @click="openSettings('team')">
                         Разработка
                     </button>
-                    <button type="button" class="small rail-btn rail-fx" @click="cycleLoginEffect">
-                        <span aria-hidden="true">⌁</span> {{ effectLabel }}
-                    </button>
                     <button
                         type="button"
                         class="small rail-btn rail-menu"
@@ -130,6 +127,22 @@
                     </form>
                     <div v-if="err || s.error" class="err" role="alert">{{ err || s.error }}</div>
                 </main>
+                <footer class="auth-status" aria-label="Настройки фона">
+                    <span class="auth-status-brand">
+                        <span class="auth-status-rgb" aria-hidden="true"></span>
+                        ALT
+                    </span>
+                    <span class="auth-status-mode">{{ backgroundLabel }}</span>
+                    <div class="auth-status-controls">
+                        <button type="button" class="small" @click="cycleLoginEffect">
+                            <span class="visually-hidden">Эффект: </span>{{ effectLabel }}
+                        </button>
+                        <button type="button" class="small" @click="cycleLoginQuality">
+                            Качество: {{ qualityLabel }}
+                        </button>
+                    </div>
+                    <p class="background-warning" role="status">{{ backgroundWarning }}</p>
+                </footer>
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">
@@ -539,7 +552,7 @@
                         <h3>Внешний вид</h3>
                         <label class="settings-row">
                             Тема
-                            <select v-model="appearance.bg">
+                            <select v-model="appearance.bg" @change="selectBackground">
                                 <option value="auto">По экрану</option>
                                 <option value="dark">Тёмная</option>
                                 <option value="light">Светлая</option>
@@ -549,7 +562,10 @@
                         <template v-if="appearance.bg === 'matrix' || appearance.bg === 'auto'">
                             <label class="settings-row">
                                 Качество фона
-                                <select v-model="appearance.quality">
+                                <select
+                                    v-model="appearance.quality"
+                                    @change="reportBackgroundLimit"
+                                >
                                     <option value="auto">Авто</option>
                                     <option :value="0">Низкое</option>
                                     <option :value="1">Среднее</option>
@@ -558,7 +574,7 @@
                             </label>
                             <label class="settings-row">
                                 Интенсивность
-                                <select v-model="appearance.fx">
+                                <select v-model="appearance.fx" @change="reportBackgroundLimit">
                                     <option :value="0">Спокойно</option>
                                     <option :value="1">Сбой</option>
                                     <option :value="2">Хаос</option>
@@ -583,6 +599,7 @@
                             Анимации
                             <input type="checkbox" v-model="appearance.anim" />
                         </label>
+                        <p class="background-warning" role="status">{{ backgroundWarning }}</p>
                     </section>
                     <nav
                         v-if="s.phase === 'ready'"
