@@ -45,6 +45,7 @@ createApp({
         const showCreate = ref(false);
         const newRoomName = ref('');
         const newRoomPublic = ref(false);
+        const newRoomEncrypted = ref(false);
         const inviteTarget = ref('');
 
         // Состояние комнат приходит из matrix-client.js. Эти списки только
@@ -139,6 +140,7 @@ createApp({
         async function send() {
             const t = draft.value.trim();
             if (!t || !active.value) return;
+            err.value = '';
             try {
                 await mc.sendText(active.value.roomId, t);
                 draft.value = '';
@@ -151,10 +153,12 @@ createApp({
         async function doCreateRoom() {
             const name = newRoomName.value.trim();
             if (!name) return;
+            err.value = '';
             try {
-                await mc.createRoom(name, newRoomPublic.value);
+                await mc.createRoom(name, newRoomPublic.value, newRoomEncrypted.value);
                 newRoomName.value = '';
                 newRoomPublic.value = false;
+                newRoomEncrypted.value = false;
                 showCreate.value = false;
             } catch (e) {
                 err.value = e.message;
@@ -179,7 +183,14 @@ createApp({
         // При первом открытии страницы пробуем восстановить сохранённый вход.
         // При отсутствии сессии остаётся экран авторизации.
         onMounted(async () => {
-            await mc.restoreSession();
+            busy.value = true;
+            try {
+                await mc.restoreSession();
+            } catch (e) {
+                err.value = e.message;
+            } finally {
+                busy.value = false;
+            }
             nextTick(() => {
                 if (messagesBox.value) messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
             });
@@ -202,6 +213,7 @@ createApp({
             showCreate,
             newRoomName,
             newRoomPublic,
+            newRoomEncrypted,
             inviteTarget,
             active,
             joined,

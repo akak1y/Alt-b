@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
 
 describe('собранный веб-клиент', () => {
+    it('размещает WebAssembly Rust Crypto рядом с бандлом', () => {
+        const wasm = readFileSync('public/js/pkg/matrix_sdk_crypto_wasm_bg.wasm');
+        expect(WebAssembly.validate(wasm)).toBe(true);
+    });
+
     it('оформляет существующие части интерфейса и узкие экраны', () => {
         const css = readFileSync('public/css/style.css', 'utf8');
         for (const selector of [

@@ -127,14 +127,12 @@ export async function registerWithUIA(fetchImpl, { username, password, token }) 
 
 /**
  * Превращает комнаты SDK в простые объекты для Vue: имя, членство, сообщения.
- * Здесь определяется признак шифрования. Клиент не расшифровывает E2EE:
- * зашифрованные события заменяются предупреждением вместо текста сообщения.
- * buildRoomViews вызывается при синхронизации и новых событиях комнаты.
+ * SDK заменяет тип и содержимое события после расшифровки.
+ * Ошибку SDK проверяем отдельно: её тип тоже может быть m.room.message.
  */
 export function buildRoomViews(rooms) {
     return (rooms || []).map((r) => {
-        const encState = r.currentState?.getStateEvents?.('m.room.encryption', '');
-        const isEncrypted = Boolean(encState);
+        const isEncrypted = Boolean(r.hasEncryptionStateEvent());
 
         const messages = (r.timeline || [])
             .filter((e) => {
@@ -146,23 +144,19 @@ export function buildRoomViews(rooms) {
                 const sender = e.getSender();
                 const member = typeof r.getMember === 'function' ? r.getMember(sender) : null;
                 const senderName = member?.rawDisplayName || member?.name || sender;
-                if (t === 'm.room.encrypted') {
-                    return {
-                        id: e.getId(),
-                        body: '[зашифрованное сообщение — E2EE не поддерживается]',
-                        sender,
-                        senderName,
-                        ts: e.getDate ? e.getDate().getTime() : 0,
-                        encrypted: true,
-                    };
-                }
+                const failed = e.isDecryptionFailure?.();
+                const encrypted = failed || t === 'm.room.encrypted';
                 return {
                     id: e.getId(),
-                    body: e.getContent()?.body || '',
+                    body: failed
+                        ? decryptionErrorText(e.decryptionFailureReason)
+                        : encrypted
+                          ? 'Зашифрованное сообщение. Ожидание расшифровки…'
+                          : e.getContent()?.body || '',
                     sender,
                     senderName,
                     ts: e.getDate ? e.getDate().getTime() : 0,
-                    encrypted: false,
+                    encrypted,
                 };
             });
 
@@ -175,4 +169,21 @@ export function buildRoomViews(rooms) {
             messages,
         };
     });
+}
+
+function decryptionErrorText(reason) {
+    switch (reason) {
+        case 'MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE':
+            return 'Ключ не передан этому устройству, поскольку оно не подтверждено.';
+        case 'MEGOLM_UNKNOWN_INBOUND_SESSION_ID':
+        case 'OLM_UNKNOWN_MESSAGE_INDEX':
+        case 'MEGOLM_KEY_WITHHELD':
+        case 'HISTORICAL_MESSAGE_NO_KEY_BACKUP':
+        case 'HISTORICAL_MESSAGE_BACKUP_UNCONFIGURED':
+        case 'HISTORICAL_MESSAGE_WORKING_BACKUP':
+        case 'HISTORICAL_MESSAGE_USER_NOT_JOINED':
+            return 'На этом устройстве нет ключа для этого сообщения.';
+        default:
+            return 'Не удалось расшифровать сообщение.';
+    }
 }
