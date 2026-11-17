@@ -10,6 +10,18 @@
     <body>
         <div id="app">
             <div v-if="s.phase === 'idle'" class="auth-screen">
+                <header class="auth-logo-wrapper" :class="{ 'logo-failed': logoFailed }">
+                    <h1 class="visually-hidden">ALT</h1>
+                    <img
+                        v-if="!logoFailed"
+                        src="/assets/alt-logo.png"
+                        alt=""
+                        class="auth-logo"
+                        @error="logoFailed = true"
+                    />
+                    <span v-else class="auth-logo-fallback" aria-hidden="true">ALT</span>
+                </header>
+
                 <div class="auth-barcode" aria-hidden="true"></div>
                 <div class="auth-diag" aria-hidden="true"></div>
                 <img src="/assets/skull.png" class="auth-skull" alt="" />
@@ -33,108 +45,91 @@
                     </button>
                 </nav>
 
-                <div class="auth-content">
-                    <header class="auth-logo-wrapper" :class="{ 'logo-failed': logoFailed }">
-                        <h1 class="visually-hidden">ALT</h1>
-                        <img
-                            v-if="!logoFailed"
-                            src="/assets/alt-logo.png"
-                            alt=""
-                            class="auth-logo"
-                            @error="logoFailed = true"
-                        />
-                        <span v-else class="auth-logo-fallback" aria-hidden="true">ALT</span>
-                    </header>
-                    <main class="auth-panel">
-                        <nav class="auth-choice" aria-label="Доступ к аккаунту">
-                            <button
-                                type="button"
-                                :aria-pressed="!registration"
-                                @click="showAuthForm(false)"
-                            >
-                                Вход
-                            </button>
-                            <button
-                                type="button"
-                                :aria-pressed="registration"
-                                @click="showAuthForm(true)"
-                            >
-                                Регистрация
-                            </button>
-                        </nav>
-                        <form v-show="!registration" class="auth-box" @submit.prevent="doLogin">
-                            <h2>Вход</h2>
-                            <div class="auth-fields">
-                                <div>
-                                    <label for="auth-username">Логин</label>
-                                    <input
-                                        id="auth-username"
-                                        v-model="username"
-                                        placeholder="Логин"
-                                        autocomplete="username"
-                                    />
-                                </div>
-                                <div>
-                                    <label for="auth-password">Пароль</label>
-                                    <input
-                                        id="auth-password"
-                                        v-model="password"
-                                        type="password"
-                                        placeholder="Пароль"
-                                        autocomplete="current-password"
-                                    />
-                                </div>
-                            </div>
-                            <button type="submit" class="primary" :disabled="busy">ВХОД</button>
-                        </form>
-
-                        <form
-                            v-show="registration"
-                            class="auth-box auth-register"
-                            @submit.prevent="doRegister"
+                <main class="auth-panel">
+                    <nav class="auth-choice" aria-label="Доступ к аккаунту">
+                        <button
+                            type="button"
+                            :aria-pressed="!registration"
+                            @click="showAuthForm(false)"
                         >
-                            <h2>Регистрация</h2>
-                            <p v-if="personalLogin" class="personal-invitation">
-                                Личное приглашение для <strong>{{ personalLogin }}</strong>
-                            </p>
-                            <div class="auth-fields">
-                                <div v-if="!personalLogin">
-                                    <label for="register-username">Логин</label>
-                                    <input
-                                        id="register-username"
-                                        v-model="registerUsername"
-                                        placeholder="Логин"
-                                        autocomplete="username"
-                                    />
-                                </div>
-                                <div>
-                                    <label for="register-password">Пароль</label>
-                                    <input
-                                        id="register-password"
-                                        v-model="registerPassword"
-                                        type="password"
-                                        placeholder="Пароль"
-                                        autocomplete="new-password"
-                                    />
-                                </div>
+                            Вход
+                        </button>
+                        <button
+                            type="button"
+                            :aria-pressed="registration"
+                            @click="showAuthForm(true)"
+                        >
+                            Регистрация
+                        </button>
+                    </nav>
+                    <form v-show="!registration" class="auth-box" @submit.prevent="doLogin">
+                        <h2>Вход</h2>
+                        <div class="auth-fields">
+                            <div>
+                                <label for="auth-username">Логин</label>
+                                <input
+                                    id="auth-username"
+                                    v-model="username"
+                                    placeholder="Логин"
+                                    autocomplete="username"
+                                />
                             </div>
-                            <label v-if="!personalLogin" for="auth-token">Код приглашения</label>
-                            <input
-                                v-if="!personalLogin"
-                                id="auth-token"
-                                v-model="token"
-                                placeholder="Код приглашения"
-                                autocomplete="off"
-                            />
-                            <button type="submit" class="primary" :disabled="busy">
-                                РЕГИСТРАЦИЯ
-                            </button>
-                        </form>
-                        <div v-if="err || s.error" class="err" role="alert">
-                            {{ err || s.error }}
+                            <div>
+                                <label for="auth-password">Пароль</label>
+                                <input
+                                    id="auth-password"
+                                    v-model="password"
+                                    type="password"
+                                    placeholder="Пароль"
+                                    autocomplete="current-password"
+                                />
+                            </div>
                         </div>
-                    </main>
-                </div>
+                        <button type="submit" class="primary" :disabled="busy">ВХОД</button>
+                    </form>
+
+                    <form
+                        v-show="registration"
+                        class="auth-box auth-register"
+                        @submit.prevent="doRegister"
+                    >
+                        <h2>Регистрация</h2>
+                        <p v-if="personalLogin" class="personal-invitation">
+                            Личное приглашение для <strong>{{ personalLogin }}</strong>
+                        </p>
+                        <div class="auth-fields">
+                            <div v-if="!personalLogin">
+                                <label for="register-username">Логин</label>
+                                <input
+                                    id="register-username"
+                                    v-model="registerUsername"
+                                    placeholder="Логин"
+                                    autocomplete="username"
+                                />
+                            </div>
+                            <div>
+                                <label for="register-password">Пароль</label>
+                                <input
+                                    id="register-password"
+                                    v-model="registerPassword"
+                                    type="password"
+                                    placeholder="Пароль"
+                                    autocomplete="new-password"
+                                />
+                            </div>
+                        </div>
+                        <label v-if="!personalLogin" for="auth-token">Код приглашения</label>
+                        <input
+                            v-if="!personalLogin"
+                            id="auth-token"
+                            v-model="token"
+                            placeholder="Код приглашения"
+                            autocomplete="off"
+                        />
+                        <button type="submit" class="primary" :disabled="busy">РЕГИСТРАЦИЯ</button>
+                    </form>
+                    <div v-if="err || s.error" class="err" role="alert">{{ err || s.error }}</div>
+                </main>
             </div>
 
             <div v-else-if="s.phase === 'syncing'" class="center-note">

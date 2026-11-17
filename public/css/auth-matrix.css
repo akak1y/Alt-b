@@ -86,22 +86,6 @@ body.bg-light {
     filter: var(--logo-shadow);
 }
 
-.auth-content {
-    width: min(100%, 720px);
-}
-
-@media (min-width: 761px) and (min-height: 660px) {
-    .auth-content {
-        position: relative;
-    }
-    .auth-content .auth-logo-wrapper {
-        top: auto;
-        right: auto;
-        bottom: calc(100% + 18px);
-        left: clamp(32px, 5vw, 52px);
-    }
-}
-
 .auth-logo {
     display: block;
     width: clamp(180px, 32vw, 440px);
@@ -511,11 +495,8 @@ body.bg-light {
         display: none;
     }
 
-    .auth-content {
-        width: min(100%, 550px);
-    }
-
     .auth-panel {
+        width: min(100%, 550px);
         padding: 24px 20px 24px 28px;
         clip-path: none;
     }
