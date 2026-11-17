@@ -11,11 +11,16 @@ createApp({
     render,
     setup() {
         const invitationManager = useInvitations(mc.invitationRequest);
-        const appearance = useAppearance();
         const settingsDialog = ref(null);
         const settingsPage = ref('menu');
-        function openSettings() {
-            settingsPage.value = 'menu';
+        const settingsTitle = computed(
+            () =>
+                ({ menu: 'Меню', about: 'О проекте', team: 'Разработка', faq: 'Справка ALT' })[
+                    settingsPage.value
+                ],
+        );
+        function openSettings(page = 'menu') {
+            settingsPage.value = page;
             settingsDialog.value.showModal();
         }
         function closeSettings() {
@@ -24,6 +29,7 @@ createApp({
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
+        const appearance = useAppearance(() => s.value.phase !== 'ready');
         const unsub = mc.subscribe((v) => {
             s.value = v;
         });
@@ -290,6 +296,7 @@ createApp({
             appearance,
             settingsDialog,
             settingsPage,
+            settingsTitle,
             openSettings,
             closeSettings,
             busy,

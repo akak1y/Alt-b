@@ -27,7 +27,7 @@
                     type="button"
                     class="small auth-menu"
                     aria-label="Меню"
-                    @click="openSettings"
+                    @click="openSettings()"
                 >
                     ☰
                 </button>
@@ -130,6 +130,14 @@
                     <div class="sidebar-header">
                         <img src="/assets/alt-logo.png" alt="ALT" class="sidebar-logo" />
                         <span class="conn-pill">{{ connLabel }}</span>
+                        <button
+                            type="button"
+                            class="assistant-btn"
+                            aria-label="Справка ALT"
+                            @click="openSettings('faq')"
+                        >
+                            <img src="/assets/skull.png" alt="" />
+                        </button>
                     </div>
 
                     <div class="sidebar-section">
@@ -246,7 +254,12 @@
                         <span class="user-name" :title="s.myName || s.myUserId"
                             >{{ s.myName || s.myUserId }}</span
                         >
-                        <button type="button" class="small" aria-label="Меню" @click="openSettings">
+                        <button
+                            type="button"
+                            class="small"
+                            aria-label="Меню"
+                            @click="openSettings()"
+                        >
                             ☰
                         </button>
                     </div>
@@ -498,9 +511,7 @@
                     >
                         ← Меню
                     </button>
-                    <h2 id="settings-title">
-                        {{ { menu: 'Меню', about: 'О проекте', team: 'Разработка' }[settingsPage] }}
-                    </h2>
+                    <h2 id="settings-title">{{ settingsTitle }}</h2>
                     <button
                         type="button"
                         class="small"
@@ -518,8 +529,42 @@
                             <select v-model="appearance.bg">
                                 <option value="dark">Тёмная</option>
                                 <option value="light">Светлая</option>
+                                <option value="matrix">Матрица</option>
                             </select>
                         </label>
+                        <template v-if="appearance.bg === 'matrix'">
+                            <label class="settings-row">
+                                Качество фона
+                                <select v-model="appearance.quality">
+                                    <option value="auto">Авто</option>
+                                    <option :value="0">Низкое</option>
+                                    <option :value="1">Среднее</option>
+                                    <option :value="2">Высокое</option>
+                                </select>
+                            </label>
+                            <label class="settings-row">
+                                Интенсивность
+                                <select v-model="appearance.fx">
+                                    <option :value="0">Спокойно</option>
+                                    <option :value="1">Сбой</option>
+                                    <option :value="2">Хаос</option>
+                                </select>
+                            </label>
+                            <label
+                                v-for="(label, prop) in { speed: 'Скорость', glow: 'Свечение', density: 'Плотность' }"
+                                :key="prop"
+                                class="settings-row"
+                            >
+                                {{ label }}
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="3"
+                                    step="0.1"
+                                    v-model.number="appearance[prop]"
+                                />
+                            </label>
+                        </template>
                         <label class="settings-row">
                             Анимации
                             <input type="checkbox" v-model="appearance.anim" />
@@ -548,12 +593,32 @@
                         шифрованием.
                     </p>
                 </section>
-                <section v-else class="settings-section">
+                <section v-else-if="settingsPage === 'team'" class="settings-section">
                     <p>Alt разрабатывают студенты-энтузиасты.</p>
                     <ul>
                         <li>Разработчик 1 — Фамилия И. О.</li>
                         <li>Разработчик 2 — Фамилия И. О.</li>
                     </ul>
+                </section>
+                <section v-else class="settings-section assistant-faq">
+                    <p>Короткие ответы о работе Alt.</p>
+                    <details>
+                        <summary>Как создать приватную зашифрованную комнату?</summary>
+                        <p>
+                            Выбери «Новая комната» и включи «Сквозное шифрование» перед созданием.
+                        </p>
+                    </details>
+                    <details>
+                        <summary>Как открыть старые сообщения?</summary>
+                        <p>Прокрути переписку вверх. История подгружается в той же ленте.</p>
+                    </details>
+                    <details>
+                        <summary>Как пригласить собеседника в комнату?</summary>
+                        <p>
+                            В открытой комнате укажи полный Matrix ID собеседника и нажми
+                            «Пригласить».
+                        </p>
+                    </details>
                 </section>
             </dialog>
         </div>
