@@ -89,7 +89,7 @@
                         />
                         <button type="submit" class="primary" :disabled="busy">РЕГИСТРАЦИЯ</button>
                     </form>
-                    <div v-if="err" class="err" role="alert">{{ err }}</div>
+                    <div v-if="err || s.error" class="err" role="alert">{{ err || s.error }}</div>
                 </main>
 
                 <div class="auth-rail" aria-hidden="true">
@@ -137,8 +137,21 @@
                                 @keyup.enter="doCreateRoom"
                             />
                             <label class="chk"
-                                ><input type="checkbox" v-model="newRoomPublic" /> публичная</label
+                                ><input
+                                    type="checkbox"
+                                    v-model="newRoomPublic"
+                                    @change="newRoomEncrypted = false"
+                                />
+                                публичная</label
                             >
+                            <label class="chk" :title="s.cryptoError">
+                                <input
+                                    type="checkbox"
+                                    v-model="newRoomEncrypted"
+                                    :disabled="newRoomPublic || !!s.cryptoError"
+                                />
+                                сквозное шифрование
+                            </label>
                             <button class="small primary" @click="doCreateRoom">Создать</button>
                         </div>
 
@@ -204,10 +217,12 @@
                             <button class="small right" @click="loadOlder">История</button>
                         </div>
 
-                        <div v-if="active.isEncrypted" class="enc-banner">
-                            Эта комната использует сквозное шифрование (E2EE), которое Alt пока не
-                            поддерживает. Отправка и чтение сообщений в ней недоступны — используйте
-                            Element или дождитесь этапа E2EE.
+                        <div
+                            v-if="active.isEncrypted && s.cryptoError"
+                            class="enc-banner"
+                            role="status"
+                        >
+                            {{ s.cryptoError }}
                         </div>
 
                         <div class="messages" ref="messagesBox">
@@ -225,12 +240,16 @@
                             </div>
                         </div>
 
-                        <form v-if="!active.isEncrypted" class="input-row" @submit.prevent="send">
+                        <form
+                            v-if="!active.isEncrypted || !s.cryptoError"
+                            class="input-row"
+                            @submit.prevent="send"
+                        >
                             <input v-model="draft" placeholder="Сообщение…" autocomplete="off" />
                             <button type="submit" class="primary">Отправить</button>
                         </form>
 
-                        <div v-if="!active.isEncrypted" class="invite-row">
+                        <div class="invite-row">
                             <input
                                 v-model="inviteTarget"
                                 placeholder="@user:synapse.creatusest.ru"
@@ -238,9 +257,8 @@
                             />
                             <button class="small" @click="doInvite">Пригласить</button>
                         </div>
-
-                        <div v-if="err" class="err inline">{{ err }}</div>
                     </template>
+                    <div v-if="err" class="err inline" role="alert">{{ err }}</div>
                 </main>
             </div>
             <div v-if="invitationsOpen" class="invitation-overlay" @click.self="closeInvitations">

@@ -321,7 +321,7 @@ describe('buildRoomViews (P1-4)', () => {
         roomId: '!r:h',
         name: 'room',
         timeline: [],
-        currentState: { getStateEvents: () => null },
+        hasEncryptionStateEvent: () => false,
         getMember: () => null,
         getMyMembership: () => 'join',
         getMemberCount: () => 1,
@@ -338,15 +338,14 @@ describe('buildRoomViews (P1-4)', () => {
         };
         const rooms = [
             fakeRoom({
-                isEncrypted: true,
                 timeline: [encEvent],
-                currentState: { getStateEvents: () => ({}) },
+                hasEncryptionStateEvent: () => true,
             }),
         ];
         const views = buildRoomViews(rooms);
         expect(views[0].isEncrypted).toBe(true);
         expect(views[0].messages[0].encrypted).toBe(true);
-        expect(views[0].messages[0].body).toMatch(/E2EE/);
+        expect(views[0].messages[0].body).toMatch(/Ожидание расшифровки/);
     });
 
     it('обычное m.room.message маппится с body', () => {

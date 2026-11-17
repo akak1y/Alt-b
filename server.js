@@ -14,7 +14,7 @@ const ALLOWED_CONNECT = [
     'http://localhost:8008',
     'http://localhost:3000',
 ];
-const ALLOWED_SCRIPT = ["'self'"];
+const ALLOWED_SCRIPT = ["'self'", "'wasm-unsafe-eval'"];
 
 // На каждый ответ накладываем ограничения браузера: свои скрипты/шрифты,
 // соединение только с разрешёнными адресами и запрет встраивания в iframe.

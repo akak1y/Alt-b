@@ -21,6 +21,7 @@ const state = {
     phase: 'idle',
     connection: 'offline',
     error: '',
+    cryptoError: '',
     rooms: [],
     activeRoomId: null,
     myUserId: '',
@@ -29,6 +30,49 @@ const state = {
 };
 
 let client = null;
+let transitioning = false;
+let releaseSessionLock = null;
+
+// Один активный клиент на origin. Все вкладки используют одну запись сессии.
+// Блокировка действует до закрытия Rust Crypto и его соединений с IndexedDB.
+async function acquireSessionLock() {
+    const locks = globalThis.navigator?.locks;
+    if (!locks) return;
+    await new Promise((resolve, reject) => {
+        locks
+            .request('alt-matrix-session', { ifAvailable: true }, (lock) => {
+                if (!lock) {
+                    reject(
+                        new Error(
+                            'Alt уже открыт в другой вкладке. Закройте её и обновите страницу.',
+                        ),
+                    );
+                    return;
+                }
+                return new Promise((release) => {
+                    releaseSessionLock = release;
+                    resolve();
+                });
+            })
+            .catch(reject);
+    });
+}
+
+function closeClient() {
+    const closing = client;
+    client = null;
+    closing?.stopClient();
+    releaseSessionLock?.();
+    releaseSessionLock = null;
+}
+
+// Снимок из BFCache может содержать уже остановленный SDK или старую сессию.
+globalThis.addEventListener?.('pagehide', () => {
+    if (!transitioning) closeClient();
+});
+globalThis.addEventListener?.('pageshow', (event) => {
+    if (event.persisted) globalThis.location.reload();
+});
 
 // Копия состояния для интерфейса: Vue не должен напрямую менять массив комнат
 // или сообщений, которым владеет этот модуль.
@@ -81,6 +125,14 @@ export async function invitationRequest(path, options = {}) {
 /** Перечитывает комнаты SDK и превращает их в данные для интерфейса. */
 function refreshRooms() {
     if (!client) return;
+    // Sync расшифровывает события, нужные для превью. Открытая комната
+    // дополнительно запрашивает расшифровку всей загруженной ленты.
+    if (!state.cryptoError && state.activeRoomId) {
+        const room = client.getRoom(state.activeRoomId);
+        for (const event of room?.timeline || []) {
+            if (event.shouldAttemptDecryption()) void client.decryptEventIfNeeded(event);
+        }
+    }
     state.rooms = buildRoomViews(client.getRooms());
 }
 
@@ -90,15 +142,16 @@ function refreshRooms() {
  * и временные сообщения обновляют переписку. После изменения вызываем notify,
  * чтобы Vue заново отобразил актуальные данные.
  */
-function wire() {
-    client.on(sdk.ClientEvent.Sync, (syncState) => {
+function wire(current) {
+    current.on(sdk.ClientEvent.Sync, (syncState) => {
+        if (client !== current) return;
         if (isReadySyncState(syncState)) {
             refreshRooms();
             state.phase = 'ready';
             state.connection = 'online';
             state.error = '';
-            state.myUserId = client.getUserId() || '';
-            state.myName = client.getUser?.()?.displayName || state.myUserId;
+            state.myUserId = current.getUserId() || '';
+            state.myName = current.getUser?.()?.displayName || state.myUserId;
         } else if (syncState === sdk.SyncState.Catchup) {
             state.connection = 'syncing';
             if (state.phase !== 'ready') state.phase = 'syncing';
@@ -110,27 +163,25 @@ function wire() {
 
     // События, добавленные в начало при загрузке истории, здесь не дублируем:
     // loadOlder() перечитывает комнату отдельно после завершения запроса.
-    client.on(sdk.RoomEvent.Timeline, (event, room, toStartOfTimeline) => {
-        if (toStartOfTimeline || !room) return;
+    const updateRooms = () => {
+        if (client !== current) return;
         refreshRooms();
         notify();
+    };
+    current.on(sdk.RoomEvent.Timeline, (_event, room, toStartOfTimeline) => {
+        if (!toStartOfTimeline && room) updateRooms();
     });
-    client.on(sdk.RoomEvent.LocalEchoUpdated, () => {
-        refreshRooms();
-        notify();
-    });
-    client.on(sdk.ClientEvent.Room, () => {
-        refreshRooms();
-        notify();
-    });
+    current.on(sdk.RoomEvent.LocalEchoUpdated, updateRooms);
+    current.on(sdk.ClientEvent.Room, updateRooms);
+    current.on(sdk.MatrixEventEvent.Decrypted, updateRooms);
 }
 
 /** Сбрасывает состояние интерфейса перед новым входом или после выхода. */
 function reset() {
-    client = null;
     state.phase = 'idle';
     state.connection = 'offline';
     state.error = '';
+    state.cryptoError = '';
     state.rooms = [];
     state.activeRoomId = null;
     state.myUserId = '';
@@ -138,19 +189,65 @@ function reset() {
     notify();
 }
 
-/**
- * Создаёт клиент без сессии, запрашивает вход по паролю, затем запускает
- * синхронизацию. Токен сохраняет performLogin; wire следит за сообщениями.
- */
-export async function login({ username, password }) {
-    reset();
-    client = sdk.createClient({ baseUrl: HOMESERVER });
-    await performLogin(client, { username, password }, store);
-    wire();
+async function startSession({ accessToken, userId, deviceId }) {
+    client = sdk.createClient({ baseUrl: HOMESERVER, accessToken, userId, deviceId });
     state.phase = 'syncing';
     state.connection = 'syncing';
     notify();
+    if (!releaseSessionLock || !globalThis.indexedDB) {
+        state.cryptoError = 'Для E2EE нужны IndexedDB и Web Locks в защищённом контексте.';
+    } else if (!deviceId) {
+        state.cryptoError = 'В этой сессии нет ID устройства. Войдите заново для работы с E2EE.';
+    } else {
+        try {
+            await client.initRustCrypto({
+                useIndexedDB: true,
+                cryptoDatabasePrefix: `alt-e2ee-${JSON.stringify([HOMESERVER, userId, deviceId])}`,
+            });
+        } catch {
+            state.cryptoError =
+                'Не удалось запустить E2EE. Проверьте доступ к хранилищу браузера и обновите страницу.';
+        }
+    }
+    wire(client);
     await client.startClient();
+}
+
+async function openSession(action) {
+    if (transitioning || client) throw new Error('Сессия Alt уже открывается или активна.');
+    transitioning = true;
+    reset();
+    try {
+        await acquireSessionLock();
+        return await action();
+    } finally {
+        // Даже при неудачном входе или запуске следующая вкладка сможет войти.
+        if (!client) closeClient();
+        transitioning = false;
+    }
+}
+
+async function startAuthenticatedSession(session) {
+    try {
+        await startSession(session);
+    } catch {
+        closeClient();
+        reset();
+        throw new Error('Не удалось запустить клиент Matrix. Обновите страницу.');
+    }
+}
+
+/** Запрашивает вход по паролю, сохраняя выданный сервером ID устройства. */
+export async function login({ username, password }) {
+    return openSession(async () => {
+        const auth = sdk.createClient({ baseUrl: HOMESERVER });
+        const result = await performLogin(auth, { username, password }, store);
+        await startAuthenticatedSession({
+            accessToken: result.access_token,
+            userId: result.user_id,
+            deviceId: result.device_id,
+        });
+    });
 }
 
 /**
@@ -158,20 +255,15 @@ export async function login({ username, password }) {
  * сессию и запускает тот же поток синхронизации, что и при обычном входе.
  */
 export async function register({ username, password, token }) {
-    reset();
-    const data = await registerWithUIA(fetch, { username, password, token });
-    client = sdk.createClient({
-        baseUrl: HOMESERVER,
-        accessToken: data.access_token,
-        userId: data.user_id,
-        deviceId: data.device_id,
+    return openSession(async () => {
+        const data = await registerWithUIA(fetch, { username, password, token });
+        store.save(data.access_token, data.user_id, data.device_id);
+        await startAuthenticatedSession({
+            accessToken: data.access_token,
+            userId: data.user_id,
+            deviceId: data.device_id,
+        });
     });
-    store.save(data.access_token, data.user_id, data.device_id);
-    wire();
-    state.phase = 'syncing';
-    state.connection = 'syncing';
-    notify();
-    await client.startClient();
 }
 
 /**
@@ -181,36 +273,24 @@ export async function register({ username, password, token }) {
  * Никогда не удаляем ключ только потому, что Synapse временно не отвечает.
  */
 export async function restoreSession() {
-    const saved = store.load();
-    if (!saved) return 'none';
-
-    const verdict = await validateSession(fetch, saved);
-    if (verdict === 'invalid') {
-        store.clear();
-        reset();
-        return 'invalid';
-    }
-    if (verdict === 'network') {
-        state.phase = 'idle';
-        state.connection = 'reconnecting';
-        state.error = 'нет сети, сессия сохранена — ждём восстановления';
-        notify();
-        return 'network';
-    }
-
-    reset();
-    client = sdk.createClient({
-        baseUrl: HOMESERVER,
-        accessToken: saved.accessToken,
-        userId: saved.userId,
-        deviceId: saved.deviceId,
+    if (!store.load()) return 'none';
+    return openSession(async () => {
+        const saved = store.load();
+        if (!saved) return 'none';
+        const verdict = await validateSession(fetch, saved);
+        if (verdict === 'invalid') {
+            store.clear();
+            return 'invalid';
+        }
+        if (verdict === 'network') {
+            state.connection = 'reconnecting';
+            state.error = 'Нет связи с Synapse. Сессия сохранена, обновите страницу.';
+            notify();
+            return 'network';
+        }
+        await startAuthenticatedSession(saved);
+        return 'restored';
     });
-    wire();
-    state.phase = 'syncing';
-    state.connection = 'syncing';
-    notify();
-    await client.startClient();
-    return 'restored';
 }
 
 /**
@@ -218,25 +298,28 @@ export async function restoreSession() {
  * сети удаляет локальную сессию и возвращает интерфейс к форме входа.
  */
 export async function logout() {
-    if (client) {
+    if (!client || transitioning) return;
+    transitioning = true;
+    try {
+        const closing = client;
+        client = null;
         try {
-            await client.logout();
+            await closing.logout(true);
         } catch {
             // Сервер недоступен — локальный выход всё равно должен завершиться.
         }
-        try {
-            client.stopClient();
-        } catch {
-            // Остановку SDK тоже не считаем причиной оставлять сессию.
-        }
+        store.clear();
+    } finally {
+        closeClient();
+        transitioning = false;
+        reset();
     }
-    store.clear();
-    reset();
 }
 
 /** Выбирает открытую комнату локально, не отправляя запрос на сервер. */
 export function selectRoom(roomId) {
     state.activeRoomId = roomId;
+    refreshRooms();
     notify();
 }
 /** Принимает приглашение в комнату через SDK; список обновится при синхронизации. */
@@ -254,7 +337,13 @@ export async function loadOlder(roomId) {
 }
 /** Отправляет текст в выбранную комнату; без клиента отправка запрещена. */
 export async function sendText(roomId, text) {
-    if (!client) throw new Error('no client');
+    const room = client?.getRoom(roomId);
+    if (!room || room.getMyMembership() !== 'join' || state.phase !== 'ready') {
+        throw new Error('Комната ещё не готова к отправке сообщений.');
+    }
+    if (room.hasEncryptionStateEvent() && (state.cryptoError || !client.getCrypto())) {
+        throw new Error('Шифрование недоступно. Сообщение не отправлено.');
+    }
     await client.sendTextMessage(roomId, text);
 }
 
@@ -262,12 +351,26 @@ export async function sendText(roomId, text) {
  * Создаёт публичную или закрытую комнату. Параметры видимости передаются
  * прямо в SDK, а вызывающему коду возвращается ID созданной комнаты.
  */
-export async function createRoom(name, isPublic = false) {
+export async function createRoom(name, isPublic = false, encrypted = false) {
     if (!client) throw new Error('no client');
+    if (encrypted && isPublic)
+        throw new Error('Создать зашифрованную комнату можно только приватной.');
+    if (encrypted && (state.cryptoError || !client.getCrypto())) {
+        throw new Error('Шифрование недоступно. Комната не создана.');
+    }
     const res = await client.createRoom({
         name: String(name).trim(),
         visibility: isPublic ? 'public' : 'private',
-        preset: isPublic ? 'public_chat' : 'trusted_private_chat',
+        preset: isPublic ? 'public_chat' : encrypted ? 'private_chat' : 'trusted_private_chat',
+        ...(encrypted && {
+            initial_state: [
+                {
+                    type: 'm.room.encryption',
+                    state_key: '',
+                    content: { algorithm: 'm.megolm.v1.aes-sha2' },
+                },
+            ],
+        }),
     });
     return res.room_id;
 }
