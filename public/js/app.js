@@ -3,6 +3,8 @@ import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
 import { isRegistrationUsername, useInvitations } from './invitations.js';
 import { useAppearance } from './appearance.js';
+import { createSnakeGame } from './snake-game.js';
+import { readImageFile, resizeAvatar } from './profile-avatar.js';
 
 // Входная точка интерфейса: Vue связывает шаблон public/index.html с действиями
 // из matrix-client.js. Здесь хранятся значения полей и видимые ошибки, но нет
@@ -13,27 +15,180 @@ createApp({
         const invitationManager = useInvitations(mc.invitationRequest);
         const settingsDialog = ref(null);
         const settingsPage = ref('menu');
+        const settingsTab = ref('account');
+        const assistantScene = ref('intro');
+        const assistantOpen = ref(false);
+        const assistantScan = ref(false);
+        let assistantScanTimer = null;
+        const assistantGreetings = [
+            'Связь установлена',
+            'Что на этот раз?',
+            'Чем могу помочь?',
+            'Я на связи',
+            'Готов к новой задаче',
+            'Система помощника активна',
+            'Чем займёмся сегодня?',
+        ];
+        const assistantGreeting = ref(assistantGreetings[0]);
+        const customAvatar = ref('');
+        const avatarError = ref('');
+        const nicknameDraft = ref('');
+        const nicknameBusy = ref(false);
+        const nicknameError = ref('');
+        const snakeCanvas = ref(null);
+        const snakeScore = ref(0);
+        const snakeRunning = ref(false);
+        // Создаём одну игровую модель: таймер и отрисовка не размножаются в шаблоне.
+        const snakeGame = createSnakeGame(
+            snakeCanvas,
+            (reset) => {
+                if (reset) snakeScore.value = 0;
+                else snakeScore.value += 1;
+            },
+            () => {
+                snakeRunning.value = false;
+            },
+        );
+        const startSnake = () => {
+            snakeRunning.value = true;
+            snakeGame.start();
+        };
+        const stopSnake = () => snakeGame.stop();
+        const changeSnakeDirection = (direction) => snakeGame.setDirection(direction);
+        const onSnakeKey = (event) => snakeGame.handleKey(event);
+        async function saveNickname() {
+            // Блокирует повторную отправку никнейма до ответа сервера.
+            nicknameError.value = '';
+            nicknameBusy.value = true;
+            try {
+                await mc.setProfileName(nicknameDraft.value);
+                nicknameDraft.value = s.value.myName;
+            } catch (error) {
+                nicknameError.value = error.message || 'Не удалось изменить никнейм.';
+            } finally {
+                nicknameBusy.value = false;
+            }
+        }
+        function avatarStorageKey() {
+            return `alt-custom-avatar:${s.value.myUserId || 'guest'}`;
+        }
+        function loadCustomAvatar() {
+            try {
+                customAvatar.value = localStorage.getItem(avatarStorageKey()) || '';
+            } catch {
+                customAvatar.value = '';
+            }
+        }
+        function removeCustomAvatar() {
+            // Удаляет аватар только для текущего Matrix-профиля в локальном хранилище.
+            customAvatar.value = '';
+            avatarError.value = '';
+            try {
+                localStorage.removeItem(avatarStorageKey());
+            } catch {
+                // Interface remains usable if browser storage is unavailable.
+            }
+        }
+        async function selectCustomAvatar(event) {
+            // Загружает файл один раз, кадрирует и сохраняет его для отображения в интерфейсе.
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            avatarError.value = '';
+            try {
+                // Загрузка и квадратное кадрирование вынесены в профильный модуль.
+                const loaded = await readImageFile(file);
+                const dataUrl = resizeAvatar(loaded.image);
+                try {
+                    localStorage.setItem(avatarStorageKey(), dataUrl);
+                    customAvatar.value = dataUrl;
+                } catch {
+                    avatarError.value = 'Не удалось сохранить аватар в браузере.';
+                }
+            } catch (error) {
+                avatarError.value = error.message || 'Не удалось загрузить аватар.';
+            }
+        }
+        function openAssistant() {
+            // Выбирает случайную приветственную реплику и запускает короткий экран вызова.
+            assistantScene.value = 'intro';
+            assistantGreeting.value =
+                assistantGreetings[Math.floor(Math.random() * assistantGreetings.length)];
+            assistantOpen.value = true;
+            assistantScan.value = true;
+            if (assistantScanTimer) window.clearTimeout(assistantScanTimer);
+            assistantScanTimer = window.setTimeout(() => {
+                assistantScan.value = false;
+                assistantScanTimer = null;
+            }, 300);
+        }
+        function closeAssistant() {
+            // Закрывает помощника, очищает переход и останавливает пасхалку.
+            assistantOpen.value = false;
+            assistantScan.value = false;
+            if (assistantScanTimer) window.clearTimeout(assistantScanTimer);
+            assistantScanTimer = null;
+            stopSnake();
+        }
+        function selectAssistantScene(scene) {
+            assistantScene.value = scene;
+            if (scene === 'snake') {
+                nextTick(startSnake);
+            } else {
+                stopSnake();
+            }
+        }
         const settingsTitle = computed(
             () =>
-                ({ menu: 'Меню', about: 'О проекте', team: 'Разработка', faq: 'Справка ALT' })[
-                    settingsPage.value
-                ],
+                ({
+                    menu: 'Настройки',
+                    about: 'О проекте',
+                    team: 'Разработка',
+                    news: 'Новости ALT',
+                    faq: 'Справка ALT',
+                })[settingsPage.value],
         );
         function openSettings(page = 'menu') {
+            // Синхронизирует вкладку окна настроек с выбранной точкой входа.
             settingsPage.value = page;
+            settingsTab.value =
+                page === 'about'
+                    ? 'about'
+                    : page === 'team'
+                      ? 'team'
+                      : page === 'news'
+                        ? 'news'
+                        : 'account';
             settingsDialog.value.showModal();
         }
         function closeSettings() {
             settingsDialog.value.close();
+            stopSnake();
         }
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
+        watch(
+            () => s.value.myName,
+            (name) => {
+                if (!nicknameDraft.value) nicknameDraft.value = name || '';
+            },
+            { immediate: true },
+        );
+        watch(
+            () => s.value.myUserId,
+            () => loadCustomAvatar(),
+            { immediate: true },
+        );
         const appearanceControls = useAppearance(() => s.value.phase === 'idle');
         const unsub = mc.subscribe((v) => {
             s.value = v;
         });
         onUnmounted(unsub);
+        onUnmounted(() => {
+            snakeGame.destroy();
+            if (assistantScanTimer) window.clearTimeout(assistantScanTimer);
+        });
 
         // Поля входа и регистрации разделены: введённый пароль не переносится
         // из одной формы в другую.
@@ -296,9 +451,32 @@ createApp({
             ...appearanceControls,
             settingsDialog,
             settingsPage,
+            settingsTab,
             settingsTitle,
             openSettings,
             closeSettings,
+            assistantOpen,
+            assistantGreeting,
+            openAssistant,
+            closeAssistant,
+            assistantScene,
+            assistantScan,
+            customAvatar,
+            avatarError,
+            nicknameDraft,
+            nicknameBusy,
+            nicknameError,
+            saveNickname,
+            snakeCanvas,
+            snakeScore,
+            snakeRunning,
+            startSnake,
+            stopSnake,
+            changeSnakeDirection,
+            onSnakeKey,
+            selectCustomAvatar,
+            removeCustomAvatar,
+            selectAssistantScene,
             busy,
             err,
             draft,

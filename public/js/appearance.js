@@ -3,7 +3,16 @@ import { createMatrixBackground } from './matrix-bg.js';
 
 const KEY = 'alt-ui-prefs';
 const backgrounds = ['auto', 'dark', 'light', 'matrix'];
-const defaults = { bg: 'auto', anim: true, fx: 1, quality: 'auto', speed: 1, glow: 1, density: 1 };
+const defaults = {
+    bg: 'auto',
+    anim: true,
+    fx: 1,
+    quality: 'auto',
+    speed: 1,
+    glow: 1,
+    density: 1,
+    stripes: true,
+};
 const level = (value) => (Number.isInteger(value) && value >= 0 && value <= 2 ? value : null);
 const factor = (value) => (typeof value === 'number' && value >= 0 && value <= 3 ? value : 1);
 const qualityLevels = ['auto', 0, 1, 2];
@@ -25,6 +34,7 @@ export function useAppearance(isAuth) {
         speed: factor(saved?.speed),
         glow: factor(saved?.glow),
         density: factor(saved?.density),
+        stripes: saved?.stripes !== false,
     });
     const memory = navigator.deviceMemory;
     const resourceLimit = ref(
@@ -81,6 +91,10 @@ export function useAppearance(isAuth) {
         appearance.value.quality = qualityLevels[(index + 1) % qualityLevels.length];
     }
 
+    function resetAppearance() {
+        appearance.value = { ...defaults };
+    }
+
     let background;
     watch(
         [appearance, isAuth, activeBackground],
@@ -89,6 +103,9 @@ export function useAppearance(isAuth) {
             document.documentElement.dataset.theme = light ? 'light' : 'dark';
             document.body.classList.toggle('bg-light', light);
             document.body.classList.toggle('alt-calm', !prefs.anim || Boolean(resourceLimit.value));
+            document.body.classList.toggle('fx-glitch', prefs.fx === 1);
+            document.body.classList.toggle('fx-chaos', prefs.fx === 2);
+            document.body.classList.toggle('fx-stripes', prefs.stripes);
             if (mode === 'matrix' && typeof window.CanvasRenderingContext2D === 'function') {
                 background ??= createMatrixBackground({
                     lowAutoQuality: !(memory > 2),
@@ -130,6 +147,7 @@ export function useAppearance(isAuth) {
         cycleLoginQuality,
         effectLabel,
         qualityLabel,
+        resetAppearance,
         renderStats,
         reportBackgroundLimit,
         selectBackground,

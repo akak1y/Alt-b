@@ -32,13 +32,19 @@
                     <button type="button" class="small rail-btn" @click="openSettings('team')">
                         Разработка
                     </button>
+                    <button type="button" class="small rail-btn" @click="openSettings('news')">
+                        Новости
+                    </button>
                     <button
                         type="button"
                         class="small rail-btn rail-menu"
                         aria-label="Меню"
                         @click="openSettings()"
                     >
-                        ☰
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M9.7 3.2l.7-1.2h3.2l.7 1.2 1.8 1.1 1.4-.2 1.6 2.8-.7 1.3.2 2.1 1 1v3.2l-1 1-.2 2.1.7 1.3-1.6 2.8-1.4-.2-1.8 1.1-.7 1.2h-3.2l-.7-1.2-1.8-1.1-1.4.2-1.6-2.8.7-1.3-.2-2.1-1-1v-3.2l1-1 .2-2.1-.7-1.3 1.6-2.8 1.4.2 1.8-1.1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                            <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
                     </button>
                 </nav>
 
@@ -155,17 +161,35 @@
             <div v-else class="chat-app" :class="{ 'room-open': active }">
                 <aside class="sidebar">
                     <div class="sidebar-header">
-                        <img src="/assets/alt-logo.png" alt="ALT" class="sidebar-logo" />
+                        <div class="sidebar-brand">
+                            <div class="sidebar-logo-wrap">
+                                <img src="/assets/alt-logo.png" alt="ALT" class="sidebar-logo" />
+                            </div>
+                            <button
+                                type="button"
+                                class="assistant-btn"
+                                aria-label="Справка ALT"
+                                title="Помощник ALT"
+                                @click="openAssistant"
+                            >
+                                <img src="/assets/skull.png" alt="" />
+                            </button>
+                        </div>
                         <span class="conn-pill">{{ connLabel }}</span>
-                        <button
-                            type="button"
-                            class="assistant-btn"
-                            aria-label="Справка ALT"
-                            @click="openSettings('faq')"
-                        >
-                            <img src="/assets/skull.png" alt="" />
-                        </button>
                     </div>
+
+                    <button
+                        type="button"
+                        class="sidebar-news"
+                        aria-label="Новости ALT"
+                        @click="openSettings('news')"
+                    >
+                        <img src="/assets/banner.png" alt="" />
+                        <span>
+                            <strong>Новости ALT</strong>
+                            <small>обновления и события</small>
+                        </span>
+                    </button>
 
                     <div class="sidebar-section">
                         <button
@@ -275,19 +299,27 @@
                     </button>
 
                     <div class="sidebar-footer">
-                        <span class="user-avatar" aria-hidden="true"
-                            >{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span
-                        >
+                        <span class="user-avatar" aria-hidden="true">
+                            <img
+                                v-if="customAvatar"
+                                :src="customAvatar"
+                                alt=""
+                            />
+                            <span v-else>{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span>
+                        </span>
                         <span class="user-name" :title="s.myName || s.myUserId"
                             >{{ s.myName || s.myUserId }}</span
                         >
                         <button
                             type="button"
-                            class="small"
+                            class="small sidebar-menu-btn"
                             aria-label="Меню"
                             @click="openSettings()"
                         >
-                            ☰
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M9.7 3.2l.7-1.2h3.2l.7 1.2 1.8 1.1 1.4-.2 1.6 2.8-.7 1.3.2 2.1 1 1v3.2l-1 1-.2 2.1.7 1.3-1.6 2.8-1.4-.2-1.8 1.1-.7 1.2h-3.2l-.7-1.2-1.8-1.1-1.4.2-1.6-2.8.7-1.3-.2-2.1-1-1v-3.2l1-1 .2-2.1-.7-1.3 1.6-2.8 1.4.2 1.8-1.1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
                         </button>
                     </div>
                 </aside>
@@ -355,6 +387,14 @@
                                     { encrypted: m.encrypted },
                                 ]"
                             >
+                                <span
+                                    v-if="m.sender !== s.myUserId"
+                                    class="message-avatar"
+                                    aria-hidden="true"
+                                >
+                                    <img v-if="m.senderAvatar" :src="m.senderAvatar" alt="" />
+                                    <span v-else>{{ m.senderName.slice(0, 1).toUpperCase() }}</span>
+                                </span>
                                 <span v-if="m.sender !== s.myUserId" class="message-sender"
                                     >{{ m.senderName }}</span
                                 >
@@ -528,16 +568,11 @@
                     </p>
                 </section>
             </div>
+            <div v-if="assistantScan" class="assistant-global-scan" aria-hidden="true">
+                <img src="/assets/skull.png" alt="" />
+            </div>
             <dialog ref="settingsDialog" class="settings-panel" aria-labelledby="settings-title">
                 <header class="settings-header">
-                    <button
-                        v-if="settingsPage !== 'menu'"
-                        type="button"
-                        class="small"
-                        @click="settingsPage = 'menu'"
-                    >
-                        ← Меню
-                    </button>
                     <h2 id="settings-title">{{ settingsTitle }}</h2>
                     <button
                         type="button"
@@ -548,8 +583,45 @@
                         ×
                     </button>
                 </header>
+                <nav class="settings-tabs" aria-label="Разделы настроек">
+                    <button
+                        type="button"
+                        :class="{ active: settingsPage === 'menu' && settingsTab === 'account' }"
+                        @click="settingsPage = 'menu'; settingsTab = 'account'"
+                    >
+                        Аккаунт
+                    </button>
+                    <button
+                        type="button"
+                        :class="{ active: settingsPage === 'menu' && settingsTab === 'appearance' }"
+                        @click="settingsPage = 'menu'; settingsTab = 'appearance'"
+                    >
+                        Внешний вид
+                    </button>
+                    <button
+                        type="button"
+                        :class="{ active: settingsPage === 'news' }"
+                        @click="settingsPage = 'news'; settingsTab = 'news'"
+                    >
+                        Новости
+                    </button>
+                    <button
+                        type="button"
+                        :class="{ active: settingsPage === 'about' }"
+                        @click="settingsPage = 'about'; settingsTab = 'about'"
+                    >
+                        О проекте
+                    </button>
+                    <button
+                        type="button"
+                        :class="{ active: settingsPage === 'team' }"
+                        @click="settingsPage = 'team'; settingsTab = 'team'"
+                    >
+                        Разработка
+                    </button>
+                </nav>
                 <div v-if="settingsPage === 'menu'">
-                    <section class="settings-section">
+                    <section v-if="settingsTab === 'appearance'" class="settings-section">
                         <h3>Внешний вид</h3>
                         <label class="settings-row">
                             Тема
@@ -594,29 +666,67 @@
                                     step="0.1"
                                     v-model.number="appearance[prop]"
                                 />
+                                <output class="settings-value">{{ appearance[prop].toFixed(1) }}×</output>
                             </label>
                         </template>
                         <label class="settings-row">
                             Анимации
                             <input type="checkbox" v-model="appearance.anim" />
                         </label>
+                        <label class="settings-row">
+                            Эффект полос
+                            <input type="checkbox" v-model="appearance.stripes" />
+                        </label>
+                        <button type="button" class="small settings-reset" @click="resetAppearance">
+                            Сбросить настройки
+                        </button>
                         <p class="background-warning" role="status">{{ backgroundWarning }}</p>
                     </section>
-                    <nav
-                        v-if="s.phase === 'ready'"
-                        class="settings-section settings-links"
-                        aria-label="Информация об Alt"
+                    <section
+                        v-if="settingsTab === 'account' && s.phase === 'ready'"
+                        class="settings-section"
                     >
-                        <button type="button" class="small" @click="settingsPage = 'about'">
-                            О проекте
-                        </button>
-                        <button type="button" class="small" @click="settingsPage = 'team'">
-                            Разработка
-                        </button>
-                    </nav>
-                    <section v-if="s.phase === 'ready'" class="settings-section">
                         <h3>Аккаунт</h3>
-                        <p class="settings-name">{{ s.myName || s.myUserId }}</p>
+                        <form class="nickname-editor" @submit.prevent="saveNickname">
+                            <label for="profile-nickname">Никнейм</label>
+                            <div>
+                                <input
+                                    id="profile-nickname"
+                                    v-model="nicknameDraft"
+                                    maxlength="40"
+                                    autocomplete="nickname"
+                                />
+                                <button type="submit" class="small" :disabled="nicknameBusy">
+                                    Сохранить
+                                </button>
+                            </div>
+                        </form>
+                        <p v-if="nicknameError" class="err" role="alert">{{ nicknameError }}</p>
+                        <div class="profile-avatar-editor">
+                            <span class="profile-avatar-preview">
+                                <img v-if="customAvatar" :src="customAvatar" alt="Аватар пользователя" />
+                                <span v-else>{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span>
+                            </span>
+                            <div class="profile-avatar-actions">
+                                <label class="small profile-avatar-upload">
+                                    Выбрать аватар
+                                    <input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp,image/gif"
+                                        @change="selectCustomAvatar"
+                                    />
+                                </label>
+                                <button
+                                    v-if="customAvatar"
+                                    type="button"
+                                    class="small"
+                                    @click="removeCustomAvatar"
+                                >
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="avatarError" class="err" role="alert">{{ avatarError }}</p>
                         <button type="button" class="settings-logout" @click="logout">
                             Выйти из аккаунта
                         </button>
@@ -691,27 +801,161 @@
                         </li>
                     </ul>
                 </section>
-                <section v-else class="settings-section assistant-faq">
-                    <p>Короткие ответы о работе Alt.</p>
-                    <details>
-                        <summary>Как создать приватную зашифрованную комнату?</summary>
-                        <p>
-                            Выбери «Новая комната» и включи «Сквозное шифрование» перед созданием.
-                        </p>
-                    </details>
-                    <details>
-                        <summary>Как открыть старые сообщения?</summary>
-                        <p>Прокрути переписку вверх. История подгружается в той же ленте.</p>
-                    </details>
-                    <details>
-                        <summary>Как пригласить собеседника в комнату?</summary>
-                        <p>
-                            В открытой комнате укажи полный Matrix ID собеседника и нажми
-                            «Пригласить».
-                        </p>
-                    </details>
+                <section v-else-if="settingsPage === 'news'" class="settings-section alt-news">
+                    <article class="news-hero">
+                        <img src="/assets/poster.jpg" alt="Плакат обновления ALT" />
+                        <div class="news-hero-shade" aria-hidden="true"></div>
+                        <span class="news-kicker">ALT / FIELD REPORT</span>
+                    </article>
+                    <header class="news-header">
+                        <div>
+                            <span class="news-date">НОВОСТЬ №1 · ОБНОВЛЕНИЕ</span>
+                            <h3>Новый образ ALT</h3>
+                        </div>
+                        <span class="news-live">Новый</span>
+                    </header>
+                    <p class="news-lead">
+                        Представлен новый визуальный формат проекта: кинетический глитч-интерфейс,
+                        панель настроек и помощник в стиле цифровой новеллы.
+                    </p>
+                    <div class="news-grid">
+                        <article>
+                            <span>01</span>
+                            <h4>Обновлённый баннер</h4>
+                            <p>Плакат стал обложкой первого официального материала о проекте ALT.</p>
+                        </article>
+                        <article>
+                            <span>02</span>
+                            <h4>Живой интерфейс</h4>
+                            <p>Настройте эффекты фона, а помощник поможет ориентироваться в функциях.</p>
+                        </article>
+                    </div>
+                </section>
+                <section v-else class="settings-section">
+                    <p>Короткие ответы о работе ALT доступны в помощнике справа от логотипа.</p>
                 </section>
             </dialog>
+
+            <div
+                v-if="assistantOpen"
+                class="assistant-overlay"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Помощник ALT"
+                @click.self="closeAssistant"
+                @keydown.esc="closeAssistant"
+                @keydown="onSnakeKey"
+            >
+                <section class="assistant-novel">
+                    <button
+                        type="button"
+                        class="novel-close"
+                        aria-label="Закрыть помощника"
+                        @click="closeAssistant"
+                    >
+                        ×
+                    </button>
+                    <header class="novel-status">
+                        <button
+                            type="button"
+                            class="novel-alt-trigger"
+                            aria-label="ALT Easter Egg"
+                            title="ALT"
+                            @click="selectAssistantScene('snake')"
+                        >
+                            ALT
+                        </button>
+                        <span class="novel-channel-name">// ASSISTANT CHANNEL</span>
+                        <span>СЦЕНА 01</span>
+                    </header>
+                    <div class="novel-character">
+                        <div class="novel-aura" aria-hidden="true"></div>
+                        <img src="/assets/уг5121.png" alt="Персонаж-помощник ALT" />
+                        <span class="novel-name">ALT-CHAN</span>
+                    </div>
+                    <div v-if="assistantScene === 'snake'" class="novel-snake">
+                        <canvas
+                            ref="snakeCanvas"
+                            width="360"
+                            height="360"
+                            tabindex="0"
+                            aria-label="Игра Змейка: управление WASD"
+                            @keydown="onSnakeKey"
+                        ></canvas>
+                        <div class="novel-snake-status">
+                            <span>WASD</span>
+                            <button type="button" class="small" @click="startSnake">
+                                {{ snakeRunning ? 'Перезапустить' : 'Старт' }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="novel-dialogue" role="status" aria-live="polite">
+                        <template v-if="assistantScene === 'intro'">
+                            <strong class="connection-established">{{ assistantGreeting }}</strong>
+                            <p>Какую задачу мы решим?</p>
+                        </template>
+                        <template v-else-if="assistantScene === 'rooms'">
+                            <strong>Помощник ALT</strong>
+                            <p>
+                                Выбери «Новая комната», затем включи «Сквозное шифрование» для
+                                приватного разговора.
+                            </p>
+                        </template>
+                        <template v-else-if="assistantScene === 'history'">
+                            <strong>Помощник ALT</strong>
+                            <p>
+                                Прокрути переписку к началу: предыдущие сообщения загрузятся в той же
+                                ленте.
+                            </p>
+                        </template>
+                        <template v-else-if="assistantScene === 'invite'">
+                            <strong>Помощник ALT</strong>
+                            <p>
+                                Открой комнату и введи полный Matrix ID собеседника в поле
+                                «Пригласить».
+                            </p>
+                        </template>
+                        <template v-else-if="assistantScene === 'snake'">
+                            <strong>Neon Snake</strong>
+                            <p>Счёт: {{ snakeScore }} · Управление: WASD</p>
+                        </template>
+                    </div>
+                    <nav class="novel-actions" aria-label="Выбор действия помощника">
+                        <button
+                            type="button"
+                            :class="{ active: assistantScene === 'rooms' }"
+                            @click="selectAssistantScene('rooms')"
+                        >
+                            <span>01</span>
+                            Создать комнату
+                        </button>
+                        <button
+                            type="button"
+                            :class="{ active: assistantScene === 'history' }"
+                            @click="selectAssistantScene('history')"
+                        >
+                            <span>02</span>
+                            Найти историю
+                        </button>
+                        <button
+                            type="button"
+                            :class="{ active: assistantScene === 'invite' }"
+                            @click="selectAssistantScene('invite')"
+                        >
+                            <span>03</span>
+                            Пригласить друга
+                        </button>
+                        <button
+                            type="button"
+                            :class="{ active: assistantScene === 'intro' }"
+                            @click="selectAssistantScene('intro')"
+                        >
+                            <span>00</span>
+                            Вернуться
+                        </button>
+                    </nav>
+                </section>
+            </div>
         </div>
 
         <script src="/js/alt.js" defer></script>

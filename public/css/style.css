@@ -503,6 +503,7 @@ input::placeholder {
     backdrop-filter: blur(5px);
     overflow: hidden;
     min-width: 0;
+    overflow-x: hidden;
 }
 
 .chat-header {
@@ -544,6 +545,8 @@ input::placeholder {
 .messages-area {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
     overflow-anchor: none;
     padding: 24px;
     display: flex;
@@ -562,7 +565,7 @@ input::placeholder {
 }
 
 .messages-area::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
 }
 
 .messages-area::-webkit-scrollbar-track {
@@ -570,15 +573,51 @@ input::placeholder {
 }
 
 .messages-area::-webkit-scrollbar-thumb {
-    background: rgba(80, 120, 200, 0.4);
+    background: transparent;
+    border: 3px solid transparent;
+    background-clip: padding-box;
     border-radius: 4px;
 }
 
 .messages-area::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 140, 220, 0.6);
+    background:
+        linear-gradient(180deg, rgba(255, 42, 90, 0.95), transparent 15%, rgba(34, 230, 255, 0.95) 15% 32%, rgba(80, 120, 220, 0.9) 32% 100%);
+    background-clip: padding-box;
+    border-width: 1px;
+    box-shadow:
+        -3px 0 rgba(255, 42, 90, 0.45),
+        3px 0 rgba(34, 230, 255, 0.45);
+    animation: chat-scrollbar-glitch 680ms steps(2, end) infinite;
+}
+
+.messages-area {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.messages-area:hover {
+    scrollbar-color: var(--accent) var(--surface);
+}
+
+@keyframes chat-scrollbar-glitch {
+    0%,
+    100% {
+        transform: translateX(0);
+        filter: saturate(1);
+    }
+    33% {
+        transform: translateX(-2px);
+        filter: saturate(1.8) hue-rotate(18deg);
+    }
+    66% {
+        transform: translateX(2px);
+        filter: saturate(1.8) hue-rotate(-18deg);
+    }
 }
 
 .message {
+    position: relative;
     max-width: 65%;
     padding: 12px 18px;
     border-radius: 16px;
@@ -598,6 +637,7 @@ input::placeholder {
 
 .message.received {
     align-self: flex-start;
+    margin-left: 42px;
     background: linear-gradient(135deg, rgba(80, 120, 200, 0.6), rgba(100, 140, 220, 0.5));
     color: #fff;
     border-bottom-left-radius: 4px;
@@ -625,6 +665,33 @@ input::placeholder {
     color: #c8bfff;
     margin-bottom: 4px;
     letter-spacing: 1px;
+}
+
+.message-avatar {
+    position: absolute;
+    top: 4px;
+    left: -42px;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: var(--accent-ink);
+    font-size: 12px;
+}
+
+.message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.message-avatar-own {
+    left: auto;
+    right: -42px;
 }
 
 .message-content {
@@ -879,6 +946,7 @@ input::placeholder {
     color: var(--accent-ink);
     display: grid;
     place-items: center;
+    overflow: hidden;
 }
 .chat-app .user-name {
     color: var(--text);

@@ -74,7 +74,7 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded, onRen
         fpsWindow = 0,
         frames = 0;
 
-    const params = { speed: 1, glow: 1, density: 1 };
+    const params = { speed: 1, glow: 1, density: 1, stripes: true };
     const SPEED = [0.7, 1.7, 3.1];
 
     const stripes = Array.from({ length: 120 }, () => ({
@@ -178,7 +178,9 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded, onRen
 
     function render(dt) {
         const T = TIERS[auth ? tier : 0];
-        const nStripes = clamp(Math.round(T.stripes * params.density), 8, stripes.length);
+        const nStripes = params.stripes
+            ? clamp(Math.round(T.stripes * params.density), 8, stripes.length)
+            : 0;
         const nFloor = clamp(Math.round(T.floor * params.density), 4, floor.length);
         const nCols = clamp(Math.round(T.cols * params.density), 2, cols.length);
         const bursting = time < burstUntil;
@@ -439,6 +441,7 @@ export function createMatrixBackground({ lowAutoQuality, onBudgetExceeded, onRen
             params.speed = prefs.speed;
             params.glow = prefs.glow;
             params.density = prefs.density;
+            params.stripes = prefs.stripes;
             if (resetTier) {
                 setTier(
                     quality === 'auto'
