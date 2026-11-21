@@ -112,6 +112,27 @@ describe('собранный веб-клиент', () => {
         }
     });
 
+    it('до входа открывает непустые настройки внешнего вида, а не вкладку аккаунта', async () => {
+        const dom = new JSDOM(readFileSync('public/index.html', 'utf8'), {
+            url: 'http://localhost:3000/',
+            runScripts: 'outside-only',
+        });
+        try {
+            dom.window.HTMLDialogElement.prototype.showModal = function () {
+                this.setAttribute('open', '');
+            };
+            dom.window.eval(readFileSync('public/js/alt.js', 'utf8'));
+            dom.window.document.querySelector('.auth-rail .rail-menu').click();
+            await Promise.resolve();
+            const settings = dom.window.document.querySelector('.settings-panel');
+            expect(settings.open).toBe(true);
+            expect(settings.querySelector('.settings-section h3').textContent).toBe('Внешний вид');
+            expect(settings.querySelector('.settings-tabs').textContent).not.toContain('Аккаунт');
+        } finally {
+            dom.window.close();
+        }
+    });
+
     it('открывает регистрацию по ссылке с кодом, не оставляя код в адресной строке', () => {
         const html = readFileSync('public/index.html', 'utf8');
         const bundle = readFileSync('public/js/alt.js', 'utf8');

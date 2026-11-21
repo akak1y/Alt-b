@@ -3,8 +3,11 @@ import { render } from 'alt-template';
 import * as mc from './matrix-client.js';
 import { isRegistrationUsername, useInvitations } from './invitations.js';
 import { useAppearance } from './appearance.js';
-import { createSnakeGame } from './snake-game.js';
+import { useSnakeControls } from './snake-game.js';
 import { readImageFile, resizeAvatar } from './profile-avatar.js';
+import { useProfileName } from './profile-settings.js';
+import { useAssistantFocus, shouldAnimateAssistant } from './assistant-focus.js';
+import { settingsTabForPage } from './settings-tabs.js';
 
 // Входная точка интерфейса: Vue связывает шаблон public/index.html с действиями
 // из matrix-client.js. Здесь хранятся значения полей и видимые ошибки, но нет
@@ -15,9 +18,8 @@ createApp({
         const invitationManager = useInvitations(mc.invitationRequest);
         const settingsDialog = ref(null);
         const settingsPage = ref('menu');
-        const settingsTab = ref('account');
+        const settingsTab = ref('appearance');
         const assistantScene = ref('intro');
-        const assistantOpen = ref(false);
         const assistantScan = ref(false);
         let assistantScanTimer = null;
         const assistantGreetings = [
@@ -32,43 +34,23 @@ createApp({
         const assistantGreeting = ref(assistantGreetings[0]);
         const customAvatar = ref('');
         const avatarError = ref('');
-        const nicknameDraft = ref('');
-        const nicknameBusy = ref(false);
-        const nicknameError = ref('');
         const snakeCanvas = ref(null);
-        const snakeScore = ref(0);
-        const snakeRunning = ref(false);
-        // Создаём одну игровую модель: таймер и отрисовка не размножаются в шаблоне.
-        const snakeGame = createSnakeGame(
-            snakeCanvas,
-            (reset) => {
-                if (reset) snakeScore.value = 0;
-                else snakeScore.value += 1;
-            },
-            () => {
-                snakeRunning.value = false;
-            },
-        );
-        const startSnake = () => {
-            snakeRunning.value = true;
-            snakeGame.start();
-        };
-        const stopSnake = () => snakeGame.stop();
+        const { snakeGame, snakeScore, snakeRunning, startSnake, stopSnake } =
+            useSnakeControls(snakeCanvas);
         const changeSnakeDirection = (direction) => snakeGame.setDirection(direction);
         const onSnakeKey = (event) => snakeGame.handleKey(event);
-        async function saveNickname() {
-            // Блокирует повторную отправку никнейма до ответа сервера.
-            nicknameError.value = '';
-            nicknameBusy.value = true;
-            try {
-                await mc.setProfileName(nicknameDraft.value);
-                nicknameDraft.value = s.value.myName;
-            } catch (error) {
-                nicknameError.value = error.message || 'Не удалось изменить никнейм.';
-            } finally {
-                nicknameBusy.value = false;
-            }
-        }
+        const {
+            assistantOpen,
+            assistantDialog,
+            openAssistantDialog,
+            closeAssistantDialog,
+            assistantKeys,
+        } = useAssistantFocus(() => {
+            assistantScan.value = false;
+            if (assistantScanTimer) window.clearTimeout(assistantScanTimer);
+            assistantScanTimer = null;
+            stopSnake();
+        });
         function avatarStorageKey() {
             return `alt-custom-avatar:${s.value.myUserId || 'guest'}`;
         }
@@ -114,7 +96,9 @@ createApp({
             assistantScene.value = 'intro';
             assistantGreeting.value =
                 assistantGreetings[Math.floor(Math.random() * assistantGreetings.length)];
-            assistantOpen.value = true;
+            void openAssistantDialog();
+            // Системный запрет анимации учитывается до создания короткого эффекта.
+            if (!shouldAnimateAssistant()) return;
             assistantScan.value = true;
             if (assistantScanTimer) window.clearTimeout(assistantScanTimer);
             assistantScanTimer = window.setTimeout(() => {
@@ -123,17 +107,19 @@ createApp({
             }, 300);
         }
         function closeAssistant() {
-            // Закрывает помощника, очищает переход и останавливает пасхалку.
-            assistantOpen.value = false;
-            assistantScan.value = false;
-            if (assistantScanTimer) window.clearTimeout(assistantScanTimer);
-            assistantScanTimer = null;
-            stopSnake();
+            closeAssistantDialog();
         }
         function selectAssistantScene(scene) {
             assistantScene.value = scene;
             if (scene === 'snake') {
-                nextTick(startSnake);
+                nextTick(() => {
+                    if (
+                        assistantOpen.value &&
+                        assistantScene.value === 'snake' &&
+                        shouldAnimateAssistant()
+                    )
+                        startSnake();
+                });
             } else {
                 stopSnake();
             }
@@ -151,14 +137,7 @@ createApp({
         function openSettings(page = 'menu') {
             // Синхронизирует вкладку окна настроек с выбранной точкой входа.
             settingsPage.value = page;
-            settingsTab.value =
-                page === 'about'
-                    ? 'about'
-                    : page === 'team'
-                      ? 'team'
-                      : page === 'news'
-                        ? 'news'
-                        : 'account';
+            settingsTab.value = settingsTabForPage(page, s.value.phase);
             settingsDialog.value.showModal();
         }
         function closeSettings() {
@@ -168,12 +147,20 @@ createApp({
         // Подписка присылает новые снимки состояния при синхронизации и событиях комнат.
         // При удалении компонента подписку снимаем, чтобы не держать лишний обработчик.
         const s = ref(mc.getState());
+        const { nicknameDraft, nicknameBusy, nicknameError, saveNickname } = useProfileName(
+            s,
+            mc.setProfileName,
+        );
         watch(
-            () => s.value.myName,
-            (name) => {
-                if (!nicknameDraft.value) nicknameDraft.value = name || '';
+            () => s.value.phase,
+            (phase) => {
+                if (
+                    phase !== 'ready' &&
+                    settingsPage.value === 'menu' &&
+                    settingsTab.value === 'account'
+                )
+                    settingsTab.value = 'appearance';
             },
-            { immediate: true },
         );
         watch(
             () => s.value.myUserId,
@@ -456,6 +443,8 @@ createApp({
             openSettings,
             closeSettings,
             assistantOpen,
+            assistantDialog,
+            assistantKeys,
             assistantGreeting,
             openAssistant,
             closeAssistant,

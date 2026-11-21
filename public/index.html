@@ -42,8 +42,21 @@
                         @click="openSettings()"
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M9.7 3.2l.7-1.2h3.2l.7 1.2 1.8 1.1 1.4-.2 1.6 2.8-.7 1.3.2 2.1 1 1v3.2l-1 1-.2 2.1.7 1.3-1.6 2.8-1.4-.2-1.8 1.1-.7 1.2h-3.2l-.7-1.2-1.8-1.1-1.4.2-1.6-2.8.7-1.3-.2-2.1-1-1v-3.2l1-1 .2-2.1-.7-1.3 1.6-2.8 1.4.2 1.8-1.1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-                            <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <path
+                                d="M9.7 3.2l.7-1.2h3.2l.7 1.2 1.8 1.1 1.4-.2 1.6 2.8-.7 1.3.2 2.1 1 1v3.2l-1 1-.2 2.1.7 1.3-1.6 2.8-1.4-.2-1.8 1.1-.7 1.2h-3.2l-.7-1.2-1.8-1.1-1.4.2-1.6-2.8.7-1.3-.2-2.1-1-1v-3.2l1-1 .2-2.1-.7-1.3 1.6-2.8 1.4.2 1.8-1.1z"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linejoin="round"
+                            />
+                            <circle
+                                cx="12"
+                                cy="12"
+                                r="3.2"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            />
                         </svg>
                     </button>
                 </nav>
@@ -300,12 +313,10 @@
 
                     <div class="sidebar-footer">
                         <span class="user-avatar" aria-hidden="true">
-                            <img
-                                v-if="customAvatar"
-                                :src="customAvatar"
-                                alt=""
-                            />
-                            <span v-else>{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span>
+                            <img v-if="customAvatar" :src="customAvatar" alt="" />
+                            <span v-else
+                                >{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span
+                            >
                         </span>
                         <span class="user-name" :title="s.myName || s.myUserId"
                             >{{ s.myName || s.myUserId }}</span
@@ -317,8 +328,21 @@
                             @click="openSettings()"
                         >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M9.7 3.2l.7-1.2h3.2l.7 1.2 1.8 1.1 1.4-.2 1.6 2.8-.7 1.3.2 2.1 1 1v3.2l-1 1-.2 2.1.7 1.3-1.6 2.8-1.4-.2-1.8 1.1-.7 1.2h-3.2l-.7-1.2-1.8-1.1-1.4.2-1.6-2.8.7-1.3-.2-2.1-1-1v-3.2l1-1 .2-2.1-.7-1.3 1.6-2.8 1.4.2 1.8-1.1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-                                <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                                <path
+                                    d="M9.7 3.2l.7-1.2h3.2l.7 1.2 1.8 1.1 1.4-.2 1.6 2.8-.7 1.3.2 2.1 1 1v3.2l-1 1-.2 2.1.7 1.3-1.6 2.8-1.4-.2-1.8 1.1-.7 1.2h-3.2l-.7-1.2-1.8-1.1-1.4.2-1.6-2.8.7-1.3-.2-2.1-1-1v-3.2l1-1 .2-2.1-.7-1.3 1.6-2.8 1.4.2 1.8-1.1z"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linejoin="round"
+                                />
+                                <circle
+                                    cx="12"
+                                    cy="12"
+                                    r="3.2"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                />
                             </svg>
                         </button>
                     </div>
@@ -586,6 +610,7 @@
                 <nav class="settings-tabs" aria-label="Разделы настроек">
                     <button
                         type="button"
+                        v-if="s.phase === 'ready'"
                         :class="{ active: settingsPage === 'menu' && settingsTab === 'account' }"
                         @click="settingsPage = 'menu'; settingsTab = 'account'"
                     >
@@ -666,7 +691,9 @@
                                     step="0.1"
                                     v-model.number="appearance[prop]"
                                 />
-                                <output class="settings-value">{{ appearance[prop].toFixed(1) }}×</output>
+                                <output class="settings-value"
+                                    >{{ appearance[prop].toFixed(1) }}×</output
+                                >
                             </label>
                         </template>
                         <label class="settings-row">
@@ -704,8 +731,14 @@
                         <p v-if="nicknameError" class="err" role="alert">{{ nicknameError }}</p>
                         <div class="profile-avatar-editor">
                             <span class="profile-avatar-preview">
-                                <img v-if="customAvatar" :src="customAvatar" alt="Аватар пользователя" />
-                                <span v-else>{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span>
+                                <img
+                                    v-if="customAvatar"
+                                    :src="customAvatar"
+                                    alt="Аватар пользователя"
+                                />
+                                <span v-else
+                                    >{{ (s.myName || s.myUserId).slice(0, 1).toUpperCase() }}</span
+                                >
                             </span>
                             <div class="profile-avatar-actions">
                                 <label class="small profile-avatar-upload">
@@ -803,7 +836,7 @@
                 </section>
                 <section v-else-if="settingsPage === 'news'" class="settings-section alt-news">
                     <article class="news-hero">
-                        <img src="/assets/poster.jpg" alt="Плакат обновления ALT" />
+                        <img src="/assets/poster.webp" alt="Плакат обновления ALT" />
                         <div class="news-hero-shade" aria-hidden="true"></div>
                         <span class="news-kicker">ALT / FIELD REPORT</span>
                     </article>
@@ -822,12 +855,17 @@
                         <article>
                             <span>01</span>
                             <h4>Обновлённый баннер</h4>
-                            <p>Плакат стал обложкой первого официального материала о проекте ALT.</p>
+                            <p>
+                                Плакат стал обложкой первого официального материала о проекте ALT.
+                            </p>
                         </article>
                         <article>
                             <span>02</span>
                             <h4>Живой интерфейс</h4>
-                            <p>Настройте эффекты фона, а помощник поможет ориентироваться в функциях.</p>
+                            <p>
+                                Настройте эффекты фона, а помощник поможет ориентироваться в
+                                функциях.
+                            </p>
                         </article>
                     </div>
                 </section>
@@ -839,11 +877,13 @@
             <div
                 v-if="assistantOpen"
                 class="assistant-overlay"
+                ref="assistantDialog"
+                tabindex="-1"
                 role="dialog"
                 aria-modal="true"
                 aria-label="Помощник ALT"
                 @click.self="closeAssistant"
-                @keydown.esc="closeAssistant"
+                @keydown="assistantKeys"
                 @keydown="onSnakeKey"
             >
                 <section class="assistant-novel">
@@ -904,8 +944,8 @@
                         <template v-else-if="assistantScene === 'history'">
                             <strong>Помощник ALT</strong>
                             <p>
-                                Прокрути переписку к началу: предыдущие сообщения загрузятся в той же
-                                ленте.
+                                Прокрути переписку к началу: предыдущие сообщения загрузятся в той
+                                же ленте.
                             </p>
                         </template>
                         <template v-else-if="assistantScene === 'invite'">

@@ -1,3 +1,5 @@
+import { ref } from 'vue';
+
 const GRID_SIZE = 18;
 const TICK_MS = 110;
 
@@ -50,12 +52,7 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
         context.stroke();
 
         context.fillStyle = '#ff22cc';
-        context.fillRect(
-            state.food.x * cell + 3,
-            state.food.y * cell + 3,
-            cell - 6,
-            cell - 6,
-        );
+        context.fillRect(state.food.x * cell + 3, state.food.y * cell + 3, cell - 6, cell - 6);
         state.snake.forEach((part, index) => {
             context.fillStyle = index === 0 ? '#22e6ff' : '#6c8ce7';
             context.fillRect(part.x * cell + 2, part.y * cell + 2, cell - 4, cell - 4);
@@ -78,8 +75,7 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
             x: head.x + state.direction.x,
             y: head.y + state.direction.y,
         };
-        const hitWall =
-            next.x < 0 || next.y < 0 || next.x >= GRID_SIZE || next.y >= GRID_SIZE;
+        const hitWall = next.x < 0 || next.y < 0 || next.x >= GRID_SIZE || next.y >= GRID_SIZE;
         const occupied = new Set(state.snake.map((part) => `${part.x}:${part.y}`));
         if (hitWall || occupied.has(`${next.x}:${next.y}`)) {
             stop();
@@ -99,7 +95,10 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
 
     function start() {
         // Сбрасывает поле, счёт и запускает ровно один цикл обновления.
-        stop();
+        // При повторном старте снимаем старый таймер без ложного уведомления
+        // интерфейса об остановке новой партии.
+        if (timer) window.clearInterval(timer);
+        timer = null;
         state = {
             snake: [
                 { x: 9, y: 9 },
@@ -126,8 +125,7 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
 
     function handleKey(event) {
         // Переводит клавиши стрелок и WASD в направление движения.
-        const direction =
-            DIRECTIONS[event.key] || DIRECTIONS[String(event.key).toLowerCase()];
+        const direction = DIRECTIONS[event.key] || DIRECTIONS[String(event.key).toLowerCase()];
         if (!direction) return false;
         event.preventDefault();
         setDirection(direction);
@@ -140,4 +138,28 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
     }
 
     return { start, stop, destroy, setDirection, handleKey, isRunning: () => running };
+}
+
+// Реальное состояние игрового таймера — единственный источник для надписи кнопки.
+export function useSnakeControls(canvasRef) {
+    const snakeScore = ref(0);
+    const snakeRunning = ref(false);
+    const snakeGame = createSnakeGame(
+        canvasRef,
+        (reset) => {
+            if (reset) snakeScore.value = 0;
+            else snakeScore.value += 1;
+        },
+        () => {
+            snakeRunning.value = false;
+        },
+    );
+    function startSnake() {
+        snakeGame.start();
+        snakeRunning.value = snakeGame.isRunning();
+    }
+    function stopSnake() {
+        snakeGame.stop();
+    }
+    return { snakeGame, snakeScore, snakeRunning, startSnake, stopSnake };
 }
