@@ -183,6 +183,48 @@ describe('помощник с клавиатуры', () => {
 });
 
 describe('состояние змейки', () => {
+    it('засчитывает последнюю цель, останавливается и позволяет начать новую партию', () => {
+        vi.useFakeTimers();
+        const ui = useSnakeControls(ref(null));
+        // Обходим все клетки по замкнутому пути: ряды зигзагом, обратно по левому краю.
+        const path = [];
+        for (let y = 17; y >= 0; y--) {
+            for (let x = 1; x < 18; x++) path.push({ x: y % 2 ? x : 18 - x, y });
+        }
+        for (let y = 0; y < 18; y++) path.push({ x: 0, y });
+
+        ui.startSnake();
+        vi.advanceTimersByTime(3 * 110); // Голова перед первой целью (13, 9).
+        const firstFood = path.findIndex(({ x, y }) => x === 13 && y === 9);
+        const maxScore = path.length - 3;
+        const random = vi.spyOn(Math, 'random').mockImplementation(() => {
+            throw new Error('После последнего хода нельзя искать новую цель');
+        });
+        try {
+            for (let score = 1; score <= maxScore; score++) {
+                const index = firstFood + score - 1;
+                const previous = path[(index - 1) % path.length];
+                const target = path[index % path.length];
+                if (score < maxScore) {
+                    const next = path[(index + 1) % path.length];
+                    random.mockReturnValueOnce((next.x + 0.5) / 18);
+                    random.mockReturnValueOnce((next.y + 0.5) / 18);
+                }
+                ui.snakeGame.setDirection({ x: target.x - previous.x, y: target.y - previous.y });
+                vi.advanceTimersByTime(110);
+            }
+        } finally {
+            random.mockRestore();
+        }
+        expect(ui.snakeScore.value).toBe(321);
+        expect(ui.snakeRunning.value).toBe(false);
+        expect(vi.getTimerCount()).toBe(0);
+        ui.startSnake();
+        expect(ui.snakeScore.value).toBe(0);
+        expect(ui.snakeRunning.value).toBe(true);
+        ui.stopSnake();
+    });
+
     it('запускает и перезапускает один таймер, останавливается вручную, при столкновении и закрытии', async () => {
         vi.useFakeTimers();
         const canvas = {

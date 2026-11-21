@@ -883,8 +883,7 @@
                 aria-modal="true"
                 aria-label="Помощник ALT"
                 @click.self="closeAssistant"
-                @keydown="assistantKeys"
-                @keydown="onSnakeKey"
+                @keydown="onAssistantKeydown"
             >
                 <section class="assistant-novel">
                     <button
@@ -919,8 +918,7 @@
                             width="360"
                             height="360"
                             tabindex="0"
-                            aria-label="Игра Змейка: управление WASD"
-                            @keydown="onSnakeKey"
+                            aria-label="Игра Змейка: управление стрелками или WASD"
                         ></canvas>
                         <div class="novel-snake-status">
                             <span>WASD</span>

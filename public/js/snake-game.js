@@ -86,7 +86,11 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
         state.snake.unshift(next);
         if (next.x === state.food.x && next.y === state.food.y) {
             onScore();
-            placeFood();
+            if (state.snake.length === GRID_SIZE * GRID_SIZE) {
+                stop();
+            } else {
+                placeFood();
+            }
         } else {
             state.snake.pop();
         }

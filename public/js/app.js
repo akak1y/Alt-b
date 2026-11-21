@@ -38,7 +38,6 @@ createApp({
         const { snakeGame, snakeScore, snakeRunning, startSnake, stopSnake } =
             useSnakeControls(snakeCanvas);
         const changeSnakeDirection = (direction) => snakeGame.setDirection(direction);
-        const onSnakeKey = (event) => snakeGame.handleKey(event);
         const {
             assistantOpen,
             assistantDialog,
@@ -51,6 +50,10 @@ createApp({
             assistantScanTimer = null;
             stopSnake();
         });
+        function onAssistantKeydown(event) {
+            assistantKeys(event);
+            if (snakeRunning.value) snakeGame.handleKey(event);
+        }
         function avatarStorageKey() {
             return `alt-custom-avatar:${s.value.myUserId || 'guest'}`;
         }
@@ -444,7 +447,7 @@ createApp({
             closeSettings,
             assistantOpen,
             assistantDialog,
-            assistantKeys,
+            onAssistantKeydown,
             assistantGreeting,
             openAssistant,
             closeAssistant,
@@ -462,7 +465,6 @@ createApp({
             startSnake,
             stopSnake,
             changeSnakeDirection,
-            onSnakeKey,
             selectCustomAvatar,
             removeCustomAvatar,
             selectAssistantScene,
