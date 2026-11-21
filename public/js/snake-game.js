@@ -14,6 +14,17 @@ const DIRECTIONS = {
     d: { x: 1, y: 0 },
 };
 
+const CODE_DIRECTIONS = {
+    ArrowUp: { x: 0, y: -1 },
+    KeyW: { x: 0, y: -1 },
+    ArrowDown: { x: 0, y: 1 },
+    KeyS: { x: 0, y: 1 },
+    ArrowLeft: { x: -1, y: 0 },
+    KeyA: { x: -1, y: 0 },
+    ArrowRight: { x: 1, y: 0 },
+    KeyD: { x: 1, y: 0 },
+};
+
 export function createSnakeGame(canvasRef, onScore, onStop) {
     let timer = null;
     let running = false;
@@ -128,8 +139,12 @@ export function createSnakeGame(canvasRef, onScore, onStop) {
     }
 
     function handleKey(event) {
-        // Переводит клавиши стрелок и WASD в направление движения.
-        const direction = DIRECTIONS[event.key] || DIRECTIONS[String(event.key).toLowerCase()];
+        // Сначала physical code, чтобы WASD работали при русской раскладке;
+        // затем event.key для стрелок и нестандартных ситуаций.
+        const direction =
+            CODE_DIRECTIONS[event.code] ||
+            DIRECTIONS[event.key] ||
+            DIRECTIONS[String(event.key).toLowerCase()];
         if (!direction) return false;
         event.preventDefault();
         setDirection(direction);

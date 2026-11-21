@@ -43,6 +43,11 @@ function matrixClient(rooms = []) {
         getRoom: (id) => rooms.find((room) => room.roomId === id),
         getUserId: () => '@test:example.org',
         getUser: () => null,
+        getProfileInfo: vi.fn(async () => ({})),
+        setDisplayName: vi.fn(async () => ({})),
+        setAvatarUrl: vi.fn(async () => ({})),
+        uploadContent: vi.fn(async () => ({ content_uri: 'mxc://test/AV' })),
+        sendStateEvent: vi.fn(async () => ({})),
     };
 }
 
@@ -228,5 +233,110 @@ describe('зашифрованная переписка', () => {
             visibility: 'private',
             preset: 'trusted_private_chat',
         });
+    });
+});
+
+describe('профиль: ник и аватар через Matrix', () => {
+    it('не затирает displayname при последующих /sync после смены ника', async () => {
+        browser();
+        const instance = matrixClient();
+        sdk.createClient.mockReturnValueOnce(matrixClient()).mockReturnValueOnce(instance);
+        const client = await import('../public/js/matrix-client.js');
+        await client.login({ username: 'test', password: 'fake' });
+        instance.getProfileInfo.mockResolvedValue({ displayname: 'Старое' });
+        await client.setProfileName('Новое имя');
+        expect(client.getState().myName).toBe('Новое имя');
+        // Повторный sync не должен вернуть myName на userId.
+        instance.emit('sync', 'SYNCING');
+        expect(client.getState().myName).toBe('Новое имя');
+    });
+
+    it('рассылает смену ника в m.room.member join-комнат', async () => {
+        browser();
+        const instance = matrixClient([room('!r:example.org', false)]);
+        sdk.createClient.mockReturnValueOnce(matrixClient()).mockReturnValueOnce(instance);
+        const client = await import('../public/js/matrix-client.js');
+        await client.login({ username: 'test', password: 'fake' });
+        await client.setProfileName('Видимый ник');
+        expect(instance.sendStateEvent).toHaveBeenCalledWith(
+            '!r:example.org',
+            'm.room.member',
+            expect.objectContaining({ membership: 'join', displayname: 'Видимый ник' }),
+            '@test:example.org',
+        );
+    });
+
+    it('грузит файл в Matrix, ставит avatar_url и рассылает его в комнату', async () => {
+        browser();
+        const instance = matrixClient([room('!r:example.org', false)]);
+        sdk.createClient.mockReturnValueOnce(matrixClient()).mockReturnValueOnce(instance);
+        const client = await import('../public/js/matrix-client.js');
+        await client.login({ username: 'test', password: 'fake' });
+        await client.setAvatarUrl(await client.uploadAvatar({ name: 'a.png', type: 'image/png' }));
+        expect(instance.uploadContent).toHaveBeenCalled();
+        expect(instance.setAvatarUrl).toHaveBeenCalledWith('mxc://test/AV');
+        expect(client.getState().myAvatarUrl).toBe('mxc://test/AV');
+        expect(instance.sendStateEvent).toHaveBeenCalledWith(
+            '!r:example.org',
+            'm.room.member',
+            expect.objectContaining({ membership: 'join', avatar_url: 'mxc://test/AV' }),
+            '@test:example.org',
+        );
+    });
+
+    it('удаление аватара очищает state и рассылает пустой avatar_url', async () => {
+        browser();
+        const instance = matrixClient([room('!r:example.org', false)]);
+        sdk.createClient.mockReturnValueOnce(matrixClient()).mockReturnValueOnce(instance);
+        const client = await import('../public/js/matrix-client.js');
+        await client.login({ username: 'test', password: 'fake' });
+        await client.setAvatarUrl('mxc://test/AV');
+        await client.removeAvatar();
+        expect(instance.setAvatarUrl).toHaveBeenLastCalledWith('');
+        expect(client.getState().myAvatarUrl).toBe('');
+        expect(instance.sendStateEvent).toHaveBeenLastCalledWith(
+            '!r:example.org',
+            'm.room.member',
+            expect.objectContaining({ membership: 'join', avatar_url: '' }),
+            '@test:example.org',
+        );
+    });
+});
+
+describe('резолв медиа через авторизованный эндпоинт', () => {
+    it('строит v1-URL с аутентификацией, шлёт Bearer-токен и отдаёт blob-ссылку', async () => {
+        browser();
+        const instance = matrixClient();
+        instance.mxcUrlToHttp = vi.fn(
+            () => 'https://hs/_matrix/client/v1/media/thumbnail/h/M?width=48&height=48&method=crop',
+        );
+        sdk.createClient.mockReturnValueOnce(matrixClient()).mockReturnValueOnce(instance);
+        const objectUrl = 'blob:hs/abc';
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => ({ ok: true, blob: async () => new Blob(['x']) })),
+        );
+        vi.stubGlobal('URL', {
+            ...URL,
+            createObjectURL: vi.fn(() => objectUrl),
+            revokeObjectURL: vi.fn(),
+        });
+
+        const client = await import('../public/js/matrix-client.js');
+        await client.login({ username: 'test', password: 'fake' });
+        const url = await client.resolveAvatarUrl('mxc://h/M', 48);
+
+        expect(url).toBe(objectUrl);
+        expect(instance.mxcUrlToHttp).toHaveBeenCalledWith(
+            'mxc://h/M',
+            48,
+            48,
+            'crop',
+            false,
+            true,
+            true,
+        );
+        const [, init] = globalThis.fetch.mock.calls[0];
+        expect(init.headers.Authorization).toBe('Bearer test-token');
     });
 });

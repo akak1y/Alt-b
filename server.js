@@ -27,7 +27,7 @@ app.use((req, res, next) => {
             `connect-src ${ALLOWED_CONNECT.join(' ')}`,
             "style-src 'self' 'unsafe-inline'",
             "font-src 'self'",
-            "img-src 'self' data:",
+            "img-src 'self' data: blob:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
