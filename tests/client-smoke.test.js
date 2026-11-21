@@ -36,6 +36,29 @@ describe('собранный веб-клиент', () => {
         expect(statSync('public/assets/skull.png').size).toBeGreaterThan(0);
     });
 
+    it('на низком экране прокручивает слой помощника, оставляя доступной кнопку закрытия', () => {
+        const css = readFileSync('public/css/auth-matrix.css', 'utf8');
+        const start = css.indexOf('@media (max-height: 560px)');
+        const end = css.indexOf('body.alt-calm .message', start);
+        const dom = new JSDOM('<style></style>');
+        try {
+            dom.window.document.querySelector('style').textContent = css.slice(start, end);
+            const [media] = dom.window.document.styleSheets[0].cssRules;
+            expect(media.conditionText).toBe('(max-height: 560px)');
+            const overlay = [...media.cssRules].find(
+                (rule) => rule.selectorText === '.assistant-overlay',
+            );
+            expect(overlay.style.display).toBe('block');
+            expect(overlay.style.getPropertyValue('overflow-y')).toBe('auto');
+            const panel = [...media.cssRules].find(
+                (rule) => rule.selectorText === '.assistant-overlay .assistant-novel',
+            );
+            expect(panel.style.height).toBe('540px');
+        } finally {
+            dom.window.close();
+        }
+    });
+
     it('запускает Vue и показывает форму входа', () => {
         const html = readFileSync('public/index.html', 'utf8');
         const bundle = readFileSync('public/js/alt.js', 'utf8');

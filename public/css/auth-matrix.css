@@ -2064,6 +2064,21 @@ body:not(.fx-stripes) .auth-barcode {
     }
 }
 
+/* В альбомной ориентации карточка выше окна. Прокручивается весь слой,
+   поэтому кнопка закрытия остаётся у верхнего края и доступна для касания. */
+@media (max-height: 560px) {
+    .assistant-overlay {
+        display: block;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .assistant-overlay .assistant-novel {
+        height: 540px;
+        margin-inline: auto;
+    }
+}
+
 body.alt-calm .message,
 body.alt-calm .loading-mark {
     animation: none;
