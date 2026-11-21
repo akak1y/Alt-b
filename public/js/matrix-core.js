@@ -144,6 +144,15 @@ export function buildRoomViews(rooms) {
                 const sender = e.getSender();
                 const member = typeof r.getMember === 'function' ? r.getMember(sender) : null;
                 const senderName = member?.rawDisplayName || member?.name || sender;
+                let senderAvatar = '';
+                try {
+                    senderAvatar =
+                        member?.getAvatarUrl?.(HOMESERVER, 48, 48, 'crop', false) ||
+                        member?.getMxcAvatarUrl?.() ||
+                        '';
+                } catch {
+                    senderAvatar = '';
+                }
                 const failed = e.isDecryptionFailure?.();
                 const encrypted = failed || t === 'm.room.encrypted';
                 return {
@@ -155,6 +164,7 @@ export function buildRoomViews(rooms) {
                           : e.getContent()?.body || '',
                     sender,
                     senderName,
+                    senderAvatar,
                     ts: e.getDate ? e.getDate().getTime() : 0,
                     encrypted,
                 };

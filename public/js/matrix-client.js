@@ -293,6 +293,15 @@ export async function restoreSession() {
     });
 }
 
+export async function setProfileName(name) {
+    const value = String(name || '').trim();
+    if (!value) throw new Error('Никнейм не может быть пустым.');
+    if (!client) throw new Error('Нет активной сессии.');
+    await client.setDisplayName(value);
+    state.myName = value;
+    notify();
+}
+
 /**
  * Пытается сообщить серверу о выходе и остановить клиент; даже при ошибке
  * сети удаляет локальную сессию и возвращает интерфейс к форме входа.
