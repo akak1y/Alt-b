@@ -35,9 +35,23 @@ createApp({
         const customAvatar = ref('');
         const avatarError = ref('');
         const snakeCanvas = ref(null);
-        const { snakeGame, snakeScore, snakeRunning, startSnake, stopSnake } =
-            useSnakeControls(snakeCanvas);
+        const {
+            snakeGame,
+            snakeScore,
+            snakeRunning,
+            startSnake: startSnakeGame,
+            stopSnake,
+        } = useSnakeControls(snakeCanvas);
         const changeSnakeDirection = (direction) => snakeGame.setDirection(direction);
+
+        /**
+         * Запускает партию и сразу отдаёт фокус холсту. Без этого клавиши могут
+         * оставаться на кнопке «Старт»/«ALT», а управление выглядит сломанным.
+         */
+        function startSnake() {
+            startSnakeGame();
+            nextTick(() => snakeCanvas.value?.focus?.());
+        }
         const {
             assistantOpen,
             assistantDialog,
@@ -54,44 +68,47 @@ createApp({
             assistantKeys(event);
             if (snakeRunning.value) snakeGame.handleKey(event);
         }
-        function avatarStorageKey() {
-            return `alt-custom-avatar:${s.value.myUserId || 'guest'}`;
-        }
-        function loadCustomAvatar() {
-            try {
-                customAvatar.value = localStorage.getItem(avatarStorageKey()) || '';
-            } catch {
-                customAvatar.value = '';
-            }
-        }
-        function removeCustomAvatar() {
-            // Удаляет аватар только для текущего Matrix-профиля в локальном хранилище.
-            customAvatar.value = '';
-            avatarError.value = '';
-            try {
-                localStorage.removeItem(avatarStorageKey());
-            } catch {
-                // Interface remains usable if browser storage is unavailable.
-            }
-        }
+        /**
+         * Мгновенно показывает кадрированное превью (UX-механизм дизайнера), затем
+         * загружает оригинал в media-хранилище Synapse и ставит avatar_url профиля.
+         * Только после успешной загрузки аватар становится виден другим пользователям
+         * (setAvatarUrl рассылает его в комнаты). При сбое загрузки возвращаем к тому,
+         * что реально сохранено в Matrix, чтобы UI не показывал несуществующий аватар.
+         */
         async function selectCustomAvatar(event) {
-            // Загружает файл один раз, кадрирует и сохраняет его для отображения в интерфейсе.
             const file = event.target.files?.[0];
             event.target.value = '';
             if (!file) return;
             avatarError.value = '';
+            let preview = '';
             try {
-                // Загрузка и квадратное кадрирование вынесены в профильный модуль.
                 const loaded = await readImageFile(file);
-                const dataUrl = resizeAvatar(loaded.image);
-                try {
-                    localStorage.setItem(avatarStorageKey(), dataUrl);
-                    customAvatar.value = dataUrl;
-                } catch {
-                    avatarError.value = 'Не удалось сохранить аватар в браузере.';
-                }
+                preview = resizeAvatar(loaded.image);
+                customAvatar.value = preview;
             } catch (error) {
                 avatarError.value = error.message || 'Не удалось загрузить аватар.';
+                return;
+            }
+            try {
+                const mxc = await mc.uploadAvatar(file);
+                await mc.setAvatarUrl(mxc);
+                customAvatar.value = await mc.resolveAvatarUrl(mxc, 256);
+            } catch (error) {
+                customAvatar.value = s.value.myAvatarUrl
+                    ? await mc.resolveAvatarUrl(s.value.myAvatarUrl, 256)
+                    : '';
+                avatarError.value = error.message || 'Не удалось сохранить аватар в Matrix.';
+            }
+        }
+
+        /** Удаляет avatar_url профиля в Matrix и рассылает удаление в комнаты. */
+        async function removeCustomAvatar() {
+            avatarError.value = '';
+            try {
+                await mc.removeAvatar();
+                customAvatar.value = '';
+            } catch (error) {
+                avatarError.value = error.message || 'Не удалось удалить аватар.';
             }
         }
         function openAssistant() {
@@ -116,12 +133,8 @@ createApp({
             assistantScene.value = scene;
             if (scene === 'snake') {
                 nextTick(() => {
-                    if (
-                        assistantOpen.value &&
-                        assistantScene.value === 'snake' &&
-                        shouldAnimateAssistant()
-                    )
-                        startSnake();
+                    if (!assistantOpen.value || assistantScene.value !== 'snake') return;
+                    startSnake();
                 });
             } else {
                 stopSnake();
@@ -165,9 +178,18 @@ createApp({
                     settingsTab.value = 'appearance';
             },
         );
+        let avatarSeq = 0;
         watch(
-            () => s.value.myUserId,
-            () => loadCustomAvatar(),
+            () => s.value.myAvatarUrl,
+            async (mxc) => {
+                const seq = ++avatarSeq;
+                if (!mxc) {
+                    customAvatar.value = '';
+                    return;
+                }
+                const url = await mc.resolveAvatarUrl(mxc, 256);
+                if (seq === avatarSeq) customAvatar.value = url;
+            },
             { immediate: true },
         );
         const appearanceControls = useAppearance(() => s.value.phase === 'idle');

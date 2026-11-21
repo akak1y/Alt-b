@@ -26,12 +26,20 @@ const state = {
     activeRoomId: null,
     myUserId: '',
     myName: '',
+    myAvatarUrl: '',
     baseUrl: HOMESERVER,
 };
 
 let client = null;
 let transitioning = false;
 let releaseSessionLock = null;
+let profileLoaded = false;
+
+// mxc -> blob:URL уже загруженного превью; mxc -> Promise загрузки.
+// Кэш нужен, чтобы при каждой перерисовке ленты не дёргать Synapse повторно
+// и чтобы аватар не «мигал» пустым между notify() до и после разрешения.
+const avatarCache = new Map();
+const avatarPending = new Map();
 
 // Один активный клиент на origin. Все вкладки используют одну запись сессии.
 // Блокировка действует до закрытия Rust Crypto и его соединений с IndexedDB.
@@ -133,7 +141,31 @@ function refreshRooms() {
             if (event.shouldAttemptDecryption()) void client.decryptEventIfNeeded(event);
         }
     }
-    state.rooms = buildRoomViews(client.getRooms());
+    const views = buildRoomViews(client.getRooms());
+    const jobs = [];
+    for (const room of views) {
+        for (const msg of room.messages) {
+            const mxc = msg.senderAvatarMxc;
+            if (!mxc) {
+                msg.senderAvatar = '';
+                continue;
+            }
+            const cached = avatarCache.get(mxc);
+            if (cached) {
+                msg.senderAvatar = cached;
+                continue;
+            }
+            msg.senderAvatar = '';
+            jobs.push(
+                resolveMediaUrl(mxc, 48, 48).then((url) => {
+                    msg.senderAvatar = url;
+                }),
+            );
+        }
+    }
+    state.rooms = views;
+    notify();
+    if (jobs.length) void Promise.all(jobs).then(() => notify());
 }
 
 /**
@@ -151,7 +183,11 @@ function wire(current) {
             state.connection = 'online';
             state.error = '';
             state.myUserId = current.getUserId() || '';
-            state.myName = current.getUser?.()?.displayName || state.myUserId;
+            if (!state.myName) state.myName = state.myUserId;
+            if (!profileLoaded) {
+                profileLoaded = true;
+                void loadMyProfile(current);
+            }
         } else if (syncState === sdk.SyncState.Catchup) {
             state.connection = 'syncing';
             if (state.phase !== 'ready') state.phase = 'syncing';
@@ -186,6 +222,9 @@ function reset() {
     state.activeRoomId = null;
     state.myUserId = '';
     state.myName = '';
+    state.myAvatarUrl = '';
+    profileLoaded = false;
+    clearAvatarCache();
     notify();
 }
 
@@ -300,6 +339,7 @@ export async function setProfileName(name) {
     await client.setDisplayName(value);
     state.myName = value;
     notify();
+    await syncMyMemberField('displayname', value);
 }
 
 /**
@@ -388,4 +428,147 @@ export async function createRoom(name, isPublic = false, encrypted = false) {
 export async function inviteUser(roomId, userId) {
     if (!client) throw new Error('no client');
     await client.invite(roomId, String(userId).trim());
+}
+
+/**
+ * Один раз после готовности синхронизации читает displayname и avatar_url из
+ * глобального профиля Matrix в state. Уважает смену клиента (client!==current):
+ * поздний ответ старого клиента не должен затронуть новую сессию. При сбое сети
+ * остаётся fallback из userId — плашка и окно профиля не ломаются.
+ */
+async function loadMyProfile(current) {
+    if (!current || client !== current) return;
+    try {
+        const info = await current.getProfileInfo(current.getUserId());
+        if (client !== current) return;
+        if (info?.displayname) state.myName = info.displayname;
+        state.myAvatarUrl = info?.avatar_url || '';
+        notify();
+    } catch {
+        // Профиль не подтянулся — интерфейс остаётся на userId.
+    }
+}
+
+/**
+ * Обновляет ОДНО поле своего m.room.member (displayname или avatar_url) во всех
+ * комнатах, где мы состоим. setDisplayName/setAvatarUrl меняют только глобальный
+ * профиль и НЕ рассылает его в комнаты, поэтому без этого собеседники видят
+ * старое имя/аватар. Spread текущего content сохраняет membership и прочие
+ * поля (is_direct, reason); membership:'join' гарантирует, что событие не
+ * трактуется как выход. Ошибки по отдельным комнатам не критичны: глобальный
+ * профиль уже изменён, allSettled не роняет всю операцию.
+ */
+async function syncMyMemberField(field, value) {
+    const current = client;
+    if (!current) return;
+    const myId = current.getUserId();
+    if (!myId) return;
+    const rooms = current.getRooms?.() || [];
+    await Promise.allSettled(
+        rooms
+            .filter((r) => r.getMyMembership?.() === 'join')
+            .map(async (r) => {
+                const cur = r.getMember?.(myId)?.event?.getContent?.() || {};
+                await current.sendStateEvent(
+                    r.roomId,
+                    'm.room.member',
+                    { ...cur, membership: 'join', [field]: value },
+                    myId,
+                );
+            }),
+    );
+}
+
+/**
+ * Грузит файл в media-хранилище Synapse и возвращает mxc-адрес. Используется
+ * для аватара профиля; позже — для аватара комнаты и вложений сообщений.
+ */
+export async function uploadAvatar(file) {
+    if (!client) throw new Error('Нет активной сессии.');
+    const res = await client.uploadContent(file, {
+        name: file?.name || 'avatar',
+        type: file?.type || 'image/jpeg',
+    });
+    const uri = res?.content_uri || res?.mxc;
+    if (!uri) throw new Error('Synapse не вернул адрес вложения.');
+    return uri;
+}
+
+/** Ставит avatar_url глобального профиля и рассылает его в комнаты. */
+export async function setAvatarUrl(mxc) {
+    if (!client) throw new Error('Нет активной сессии.');
+    await client.setAvatarUrl(mxc);
+    state.myAvatarUrl = mxc || '';
+    notify();
+    await syncMyMemberField('avatar_url', state.myAvatarUrl);
+}
+
+/** Удаляет avatar_url профиля и рассылает удаление в комнаты. */
+export async function removeAvatar() {
+    if (!client) throw new Error('Нет активной сессии.');
+    await client.setAvatarUrl('');
+    state.myAvatarUrl = '';
+    notify();
+    await syncMyMemberField('avatar_url', '');
+}
+
+/** Access token текущей сессии для заголовка Authorization при загрузке медиа. */
+function mediaAccessToken() {
+    return store.load()?.accessToken || client?.getAccessToken?.() || '';
+}
+
+/**
+ * Загружает превью медиа через авторизованный эндпоинт Synapse и возвращает
+ * blob:URL для <img>. Это обходит authenticated media: браузер не умеет
+ * ставить Authorization на <img>, но умеет на fetch (connect-src), а blob:
+ * разрешён в img-src. Кэшируется по mxc, чтобы не перекачивать одно и то же
+ * при каждой перерисовке комнаты. useAuthentication=true даёт v1-URL, который
+ * жив и при включённом, и при выключенном authenticated media.
+ */
+async function resolveMediaUrl(mxc, width, height) {
+    if (!mxc || !client) return '';
+    const cached = avatarCache.get(mxc);
+    if (cached) return cached;
+    const pending = avatarPending.get(mxc);
+    if (pending) return pending;
+    const promise = (async () => {
+        try {
+            const url = client.mxcUrlToHttp(mxc, width, height, 'crop', false, true, true);
+            if (!url) return '';
+            const token = mediaAccessToken();
+            const res = await fetch(url, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                cache: 'no-store',
+            });
+            if (!res.ok) return '';
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            avatarCache.set(mxc, objectUrl);
+            return objectUrl;
+        } catch {
+            return '';
+        } finally {
+            avatarPending.delete(mxc);
+        }
+    })();
+    avatarPending.set(mxc, promise);
+    return promise;
+}
+
+/** Освобождает blob:URL при выходе/сбросе, чтобы не течила память вкладки. */
+function clearAvatarCache() {
+    for (const url of avatarCache.values()) {
+        try {
+            URL.revokeObjectURL(url);
+        } catch {
+            // Браузер уже мог сбросить контекст — не критично.
+        }
+    }
+    avatarCache.clear();
+    avatarPending.clear();
+}
+
+/** Публичный резолвер превью аватара заданного размера (mxc -> blob:URL или ''). */
+export async function resolveAvatarUrl(mxc, size = 96) {
+    return resolveMediaUrl(mxc, size, size);
 }

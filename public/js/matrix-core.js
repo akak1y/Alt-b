@@ -144,14 +144,11 @@ export function buildRoomViews(rooms) {
                 const sender = e.getSender();
                 const member = typeof r.getMember === 'function' ? r.getMember(sender) : null;
                 const senderName = member?.rawDisplayName || member?.name || sender;
-                let senderAvatar = '';
+                let senderAvatarMxc = '';
                 try {
-                    senderAvatar =
-                        member?.getAvatarUrl?.(HOMESERVER, 48, 48, 'crop', false) ||
-                        member?.getMxcAvatarUrl?.() ||
-                        '';
+                    senderAvatarMxc = member?.getMxcAvatarUrl?.() || '';
                 } catch {
-                    senderAvatar = '';
+                    senderAvatarMxc = '';
                 }
                 const failed = e.isDecryptionFailure?.();
                 const encrypted = failed || t === 'm.room.encrypted';
@@ -164,7 +161,8 @@ export function buildRoomViews(rooms) {
                           : e.getContent()?.body || '',
                     sender,
                     senderName,
-                    senderAvatar,
+                    senderAvatarMxc,
+                    senderAvatar: '',
                     ts: e.getDate ? e.getDate().getTime() : 0,
                     encrypted,
                 };
