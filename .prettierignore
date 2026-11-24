@@ -1,0 +1,8 @@
+node_modules/
+public/js/alt.js
+package-lock.json
+.env
+matrix/
+synapse-data/
+# Опубликованную инструкцию сохраняем без автоматического изменения разметки.
+docs/LOCAL_DEVELOPMENT.md

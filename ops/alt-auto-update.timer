@@ -1,0 +1,10 @@
+[Unit]
+Description=Проверять обновления Alt каждые пять минут
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=alt-auto-update.service
+
+[Install]
+WantedBy=timers.target

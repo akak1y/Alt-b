@@ -1,0 +1,18 @@
+[Unit]
+Description=Проверка обновлений Alt из ветки main
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=alt-deploy
+Group=alt-deploy
+WorkingDirectory=/opt/alt
+Environment=HOME=/var/lib/alt-deploy
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/node /usr/local/libexec/alt-auto-update.js
+TimeoutStartSec=5min
+ProtectSystem=strict
+ReadWritePaths=/opt/alt /var/lib/alt-deploy
+ProtectHome=yes
+PrivateTmp=yes

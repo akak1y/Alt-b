@@ -1,0 +1,1 @@
+alt-deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart alt-client.service

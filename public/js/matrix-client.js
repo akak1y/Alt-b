@@ -1,0 +1,574 @@
+import * as sdk from 'matrix-js-sdk';
+import {
+    HOMESERVER,
+    makeSessionStore,
+    validateSession,
+    performLogin,
+    isReadySyncState,
+    registerWithUIA,
+    buildRoomViews,
+} from './matrix-core.js';
+
+// Связующее звено между Vue (app.js) и matrix-js-sdk.
+// Здесь живёт запущенный клиент Matrix, хранятся данные экрана и отправляются
+// запросы к Synapse. Чистые преобразования вынесены в matrix-core.js.
+const store = makeSessionStore(localStorage);
+const listeners = new Set();
+
+// phase: idle — форма входа, syncing — первое подключение, ready — комнаты.
+// connection отдельно описывает сеть после открытия интерфейса.
+const state = {
+    phase: 'idle',
+    connection: 'offline',
+    error: '',
+    cryptoError: '',
+    rooms: [],
+    activeRoomId: null,
+    myUserId: '',
+    myName: '',
+    myAvatarUrl: '',
+    baseUrl: HOMESERVER,
+};
+
+let client = null;
+let transitioning = false;
+let releaseSessionLock = null;
+let profileLoaded = false;
+
+// mxc -> blob:URL уже загруженного превью; mxc -> Promise загрузки.
+// Кэш нужен, чтобы при каждой перерисовке ленты не дёргать Synapse повторно
+// и чтобы аватар не «мигал» пустым между notify() до и после разрешения.
+const avatarCache = new Map();
+const avatarPending = new Map();
+
+// Один активный клиент на origin. Все вкладки используют одну запись сессии.
+// Блокировка действует до закрытия Rust Crypto и его соединений с IndexedDB.
+async function acquireSessionLock() {
+    const locks = globalThis.navigator?.locks;
+    if (!locks) return;
+    await new Promise((resolve, reject) => {
+        locks
+            .request('alt-matrix-session', { ifAvailable: true }, (lock) => {
+                if (!lock) {
+                    reject(
+                        new Error(
+                            'Alt уже открыт в другой вкладке. Закройте её и обновите страницу.',
+                        ),
+                    );
+                    return;
+                }
+                return new Promise((release) => {
+                    releaseSessionLock = release;
+                    resolve();
+                });
+            })
+            .catch(reject);
+    });
+}
+
+function closeClient() {
+    const closing = client;
+    client = null;
+    closing?.stopClient();
+    releaseSessionLock?.();
+    releaseSessionLock = null;
+}
+
+// Снимок из BFCache может содержать уже остановленный SDK или старую сессию.
+globalThis.addEventListener?.('pagehide', () => {
+    if (!transitioning) closeClient();
+});
+globalThis.addEventListener?.('pageshow', (event) => {
+    if (event.persisted) globalThis.location.reload();
+});
+
+// Копия состояния для интерфейса: Vue не должен напрямую менять массив комнат
+// или сообщений, которым владеет этот модуль.
+const snapshot = () => ({
+    ...state,
+    rooms: state.rooms.map((r) => ({ ...r, messages: [...r.messages] })),
+});
+// Сообщает всем подписчикам, что состояние изменилось.
+const notify = () => listeners.forEach((fn) => fn(snapshot()));
+
+/**
+ * Подписывает компонент Vue на обновления. Сразу отдаёт текущее состояние,
+ * а возвращённая функция снимает подписку при удалении компонента.
+ */
+export const subscribe = (fn) => {
+    listeners.add(fn);
+    fn(snapshot());
+    return () => listeners.delete(fn);
+};
+/** Текущий снимок экрана для первого отображения в app.js. */
+export const getState = () => snapshot();
+/** Адрес Synapse, заданный в matrix-core.js. */
+export const getHomeserver = () => HOMESERVER;
+
+/** Запрос к защищённому API Alt с текущей пользовательской сессией. */
+export async function invitationRequest(path, options = {}) {
+    const session = store.load();
+    if (!session?.accessToken) throw new Error('Для управления приглашениями необходимо войти.');
+    let response;
+    try {
+        response = await fetch(path, {
+            ...options,
+            headers: {
+                Authorization: `Bearer ${session.accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            cache: 'no-store',
+            // Сервер последовательно выполняет whoami и запрос к Admin API.
+            signal: AbortSignal.timeout(25_000),
+        });
+    } catch {
+        throw new Error('Сервер Alt недоступен. Попробуйте позже.');
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok)
+        throw new Error(data.error || 'Не удалось выполнить действие с приглашением.');
+    return data;
+}
+
+/** Перечитывает комнаты SDK и превращает их в данные для интерфейса. */
+function refreshRooms() {
+    if (!client) return;
+    // Sync расшифровывает события, нужные для превью. Открытая комната
+    // дополнительно запрашивает расшифровку всей загруженной ленты.
+    if (!state.cryptoError && state.activeRoomId) {
+        const room = client.getRoom(state.activeRoomId);
+        for (const event of room?.timeline || []) {
+            if (event.shouldAttemptDecryption()) void client.decryptEventIfNeeded(event);
+        }
+    }
+    const views = buildRoomViews(client.getRooms());
+    const jobs = [];
+    for (const room of views) {
+        for (const msg of room.messages) {
+            const mxc = msg.senderAvatarMxc;
+            if (!mxc) {
+                msg.senderAvatar = '';
+                continue;
+            }
+            const cached = avatarCache.get(mxc);
+            if (cached) {
+                msg.senderAvatar = cached;
+                continue;
+            }
+            msg.senderAvatar = '';
+            jobs.push(
+                resolveMediaUrl(mxc, 48, 48).then((url) => {
+                    msg.senderAvatar = url;
+                }),
+            );
+        }
+    }
+    state.rooms = views;
+    notify();
+    if (jobs.length) void Promise.all(jobs).then(() => notify());
+}
+
+/**
+ * Подключает обработчики к созданному клиенту SDK.
+ * Sync обновляет готовность, состояние сети и пользователя; события комнаты
+ * и временные сообщения обновляют переписку. После изменения вызываем notify,
+ * чтобы Vue заново отобразил актуальные данные.
+ */
+function wire(current) {
+    current.on(sdk.ClientEvent.Sync, (syncState) => {
+        if (client !== current) return;
+        if (isReadySyncState(syncState)) {
+            refreshRooms();
+            state.phase = 'ready';
+            state.connection = 'online';
+            state.error = '';
+            state.myUserId = current.getUserId() || '';
+            if (!state.myName) state.myName = state.myUserId;
+            if (!profileLoaded) {
+                profileLoaded = true;
+                void loadMyProfile(current);
+            }
+        } else if (syncState === sdk.SyncState.Catchup) {
+            state.connection = 'syncing';
+            if (state.phase !== 'ready') state.phase = 'syncing';
+        } else if (syncState === sdk.SyncState.Error || syncState === sdk.SyncState.Reconnecting) {
+            state.connection = 'reconnecting';
+        }
+        notify();
+    });
+
+    // События, добавленные в начало при загрузке истории, здесь не дублируем:
+    // loadOlder() перечитывает комнату отдельно после завершения запроса.
+    const updateRooms = () => {
+        if (client !== current) return;
+        refreshRooms();
+        notify();
+    };
+    current.on(sdk.RoomEvent.Timeline, (_event, room, toStartOfTimeline) => {
+        if (!toStartOfTimeline && room) updateRooms();
+    });
+    current.on(sdk.RoomEvent.LocalEchoUpdated, updateRooms);
+    current.on(sdk.ClientEvent.Room, updateRooms);
+    current.on(sdk.MatrixEventEvent.Decrypted, updateRooms);
+}
+
+/** Сбрасывает состояние интерфейса перед новым входом или после выхода. */
+function reset() {
+    state.phase = 'idle';
+    state.connection = 'offline';
+    state.error = '';
+    state.cryptoError = '';
+    state.rooms = [];
+    state.activeRoomId = null;
+    state.myUserId = '';
+    state.myName = '';
+    state.myAvatarUrl = '';
+    profileLoaded = false;
+    clearAvatarCache();
+    notify();
+}
+
+async function startSession({ accessToken, userId, deviceId }) {
+    client = sdk.createClient({ baseUrl: HOMESERVER, accessToken, userId, deviceId });
+    state.phase = 'syncing';
+    state.connection = 'syncing';
+    notify();
+    if (!releaseSessionLock || !globalThis.indexedDB) {
+        state.cryptoError = 'Для E2EE нужны IndexedDB и Web Locks в защищённом контексте.';
+    } else if (!deviceId) {
+        state.cryptoError = 'В этой сессии нет ID устройства. Войдите заново для работы с E2EE.';
+    } else {
+        try {
+            await client.initRustCrypto({
+                useIndexedDB: true,
+                cryptoDatabasePrefix: `alt-e2ee-${JSON.stringify([HOMESERVER, userId, deviceId])}`,
+            });
+        } catch {
+            state.cryptoError =
+                'Не удалось запустить E2EE. Проверьте доступ к хранилищу браузера и обновите страницу.';
+        }
+    }
+    wire(client);
+    await client.startClient();
+}
+
+async function openSession(action) {
+    if (transitioning || client) throw new Error('Сессия Alt уже открывается или активна.');
+    transitioning = true;
+    reset();
+    try {
+        await acquireSessionLock();
+        return await action();
+    } finally {
+        // Даже при неудачном входе или запуске следующая вкладка сможет войти.
+        if (!client) closeClient();
+        transitioning = false;
+    }
+}
+
+async function startAuthenticatedSession(session) {
+    try {
+        await startSession(session);
+    } catch {
+        closeClient();
+        reset();
+        throw new Error('Не удалось запустить клиент Matrix. Обновите страницу.');
+    }
+}
+
+/** Запрашивает вход по паролю, сохраняя выданный сервером ID устройства. */
+export async function login({ username, password }) {
+    return openSession(async () => {
+        const auth = sdk.createClient({ baseUrl: HOMESERVER });
+        const result = await performLogin(auth, { username, password }, store);
+        await startAuthenticatedSession({
+            accessToken: result.access_token,
+            userId: result.user_id,
+            deviceId: result.device_id,
+        });
+    });
+}
+
+/**
+ * Выполняет регистрацию с кодом через registerWithUIA, сохраняет новую
+ * сессию и запускает тот же поток синхронизации, что и при обычном входе.
+ */
+export async function register({ username, password, token }) {
+    return openSession(async () => {
+        const data = await registerWithUIA(fetch, { username, password, token });
+        store.save(data.access_token, data.user_id, data.device_id);
+        await startAuthenticatedSession({
+            accessToken: data.access_token,
+            userId: data.user_id,
+            deviceId: data.device_id,
+        });
+    });
+}
+
+/**
+ * При загрузке страницы проверяет сохранённую сессию.
+ * none — входа не было; invalid — ключ отвергнут и удалён;
+ * network — сеть недоступна, ключ ОСТАЁТСЯ; restored — запущен SDK.
+ * Никогда не удаляем ключ только потому, что Synapse временно не отвечает.
+ */
+export async function restoreSession() {
+    if (!store.load()) return 'none';
+    return openSession(async () => {
+        const saved = store.load();
+        if (!saved) return 'none';
+        const verdict = await validateSession(fetch, saved);
+        if (verdict === 'invalid') {
+            store.clear();
+            return 'invalid';
+        }
+        if (verdict === 'network') {
+            state.connection = 'reconnecting';
+            state.error = 'Нет связи с Synapse. Сессия сохранена, обновите страницу.';
+            notify();
+            return 'network';
+        }
+        await startAuthenticatedSession(saved);
+        return 'restored';
+    });
+}
+
+export async function setProfileName(name) {
+    const value = String(name || '').trim();
+    if (!value) throw new Error('Никнейм не может быть пустым.');
+    if (!client) throw new Error('Нет активной сессии.');
+    await client.setDisplayName(value);
+    state.myName = value;
+    notify();
+    await syncMyMemberField('displayname', value);
+}
+
+/**
+ * Пытается сообщить серверу о выходе и остановить клиент; даже при ошибке
+ * сети удаляет локальную сессию и возвращает интерфейс к форме входа.
+ */
+export async function logout() {
+    if (!client || transitioning) return;
+    transitioning = true;
+    try {
+        const closing = client;
+        client = null;
+        try {
+            await closing.logout(true);
+        } catch {
+            // Сервер недоступен — локальный выход всё равно должен завершиться.
+        }
+        store.clear();
+    } finally {
+        closeClient();
+        transitioning = false;
+        reset();
+    }
+}
+
+/** Выбирает открытую комнату локально, не отправляя запрос на сервер. */
+export function selectRoom(roomId) {
+    state.activeRoomId = roomId;
+    refreshRooms();
+    notify();
+}
+/** Принимает приглашение в комнату через SDK; список обновится при синхронизации. */
+export async function joinRoom(roomId) {
+    if (client) await client.joinRoom(roomId);
+}
+/** Запрашивает до 30 предыдущих событий комнаты и обновляет её отображение. */
+export async function loadOlder(roomId) {
+    if (!client) return false;
+    const room = client.getRooms().find((r) => r.roomId === roomId);
+    if (!room || room.oldState.paginationToken === null) return false;
+    await client.scrollback(room, 30);
+    refreshRooms();
+    notify();
+    return room.oldState.paginationToken !== null;
+}
+/** Отправляет текст в выбранную комнату; без клиента отправка запрещена. */
+export async function sendText(roomId, text) {
+    const room = client?.getRoom(roomId);
+    if (!room || room.getMyMembership() !== 'join' || state.phase !== 'ready') {
+        throw new Error('Комната ещё не готова к отправке сообщений.');
+    }
+    if (room.hasEncryptionStateEvent() && (state.cryptoError || !client.getCrypto())) {
+        throw new Error('Шифрование недоступно. Сообщение не отправлено.');
+    }
+    await client.sendTextMessage(roomId, text);
+}
+
+/**
+ * Создаёт публичную или закрытую комнату. Параметры видимости передаются
+ * прямо в SDK, а вызывающему коду возвращается ID созданной комнаты.
+ */
+export async function createRoom(name, isPublic = false, encrypted = false) {
+    if (!client) throw new Error('no client');
+    if (encrypted && isPublic)
+        throw new Error('Создать зашифрованную комнату можно только приватной.');
+    if (encrypted && (state.cryptoError || !client.getCrypto())) {
+        throw new Error('Шифрование недоступно. Комната не создана.');
+    }
+    const res = await client.createRoom({
+        name: String(name).trim(),
+        visibility: isPublic ? 'public' : 'private',
+        preset: isPublic ? 'public_chat' : encrypted ? 'private_chat' : 'trusted_private_chat',
+        ...(encrypted && {
+            initial_state: [
+                {
+                    type: 'm.room.encryption',
+                    state_key: '',
+                    content: { algorithm: 'm.megolm.v1.aes-sha2' },
+                },
+            ],
+        }),
+    });
+    return res.room_id;
+}
+/** Приглашает Matrix-пользователя по ID в существующую комнату. */
+export async function inviteUser(roomId, userId) {
+    if (!client) throw new Error('no client');
+    await client.invite(roomId, String(userId).trim());
+}
+
+/**
+ * Один раз после готовности синхронизации читает displayname и avatar_url из
+ * глобального профиля Matrix в state. Уважает смену клиента (client!==current):
+ * поздний ответ старого клиента не должен затронуть новую сессию. При сбое сети
+ * остаётся fallback из userId — плашка и окно профиля не ломаются.
+ */
+async function loadMyProfile(current) {
+    if (!current || client !== current) return;
+    try {
+        const info = await current.getProfileInfo(current.getUserId());
+        if (client !== current) return;
+        if (info?.displayname) state.myName = info.displayname;
+        state.myAvatarUrl = info?.avatar_url || '';
+        notify();
+    } catch {
+        // Профиль не подтянулся — интерфейс остаётся на userId.
+    }
+}
+
+/**
+ * Обновляет ОДНО поле своего m.room.member (displayname или avatar_url) во всех
+ * комнатах, где мы состоим. setDisplayName/setAvatarUrl меняют только глобальный
+ * профиль и НЕ рассылает его в комнаты, поэтому без этого собеседники видят
+ * старое имя/аватар. Spread текущего content сохраняет membership и прочие
+ * поля (is_direct, reason); membership:'join' гарантирует, что событие не
+ * трактуется как выход. Ошибки по отдельным комнатам не критичны: глобальный
+ * профиль уже изменён, allSettled не роняет всю операцию.
+ */
+async function syncMyMemberField(field, value) {
+    const current = client;
+    if (!current) return;
+    const myId = current.getUserId();
+    if (!myId) return;
+    const rooms = current.getRooms?.() || [];
+    await Promise.allSettled(
+        rooms
+            .filter((r) => r.getMyMembership?.() === 'join')
+            .map(async (r) => {
+                const cur = r.getMember?.(myId)?.event?.getContent?.() || {};
+                await current.sendStateEvent(
+                    r.roomId,
+                    'm.room.member',
+                    { ...cur, membership: 'join', [field]: value },
+                    myId,
+                );
+            }),
+    );
+}
+
+/**
+ * Грузит файл в media-хранилище Synapse и возвращает mxc-адрес. Используется
+ * для аватара профиля; позже — для аватара комнаты и вложений сообщений.
+ */
+export async function uploadAvatar(file) {
+    if (!client) throw new Error('Нет активной сессии.');
+    const res = await client.uploadContent(file, {
+        name: file?.name || 'avatar',
+        type: file?.type || 'image/jpeg',
+    });
+    const uri = res?.content_uri || res?.mxc;
+    if (!uri) throw new Error('Synapse не вернул адрес вложения.');
+    return uri;
+}
+
+/** Ставит avatar_url глобального профиля и рассылает его в комнаты. */
+export async function setAvatarUrl(mxc) {
+    if (!client) throw new Error('Нет активной сессии.');
+    await client.setAvatarUrl(mxc);
+    state.myAvatarUrl = mxc || '';
+    notify();
+    await syncMyMemberField('avatar_url', state.myAvatarUrl);
+}
+
+/** Удаляет avatar_url профиля и рассылает удаление в комнаты. */
+export async function removeAvatar() {
+    if (!client) throw new Error('Нет активной сессии.');
+    await client.setAvatarUrl('');
+    state.myAvatarUrl = '';
+    notify();
+    await syncMyMemberField('avatar_url', '');
+}
+
+/** Access token текущей сессии для заголовка Authorization при загрузке медиа. */
+function mediaAccessToken() {
+    return store.load()?.accessToken || client?.getAccessToken?.() || '';
+}
+
+/**
+ * Загружает превью медиа через авторизованный эндпоинт Synapse и возвращает
+ * blob:URL для <img>. Это обходит authenticated media: браузер не умеет
+ * ставить Authorization на <img>, но умеет на fetch (connect-src), а blob:
+ * разрешён в img-src. Кэшируется по mxc, чтобы не перекачивать одно и то же
+ * при каждой перерисовке комнаты. useAuthentication=true даёт v1-URL, который
+ * жив и при включённом, и при выключенном authenticated media.
+ */
+async function resolveMediaUrl(mxc, width, height) {
+    if (!mxc || !client) return '';
+    const cached = avatarCache.get(mxc);
+    if (cached) return cached;
+    const pending = avatarPending.get(mxc);
+    if (pending) return pending;
+    const promise = (async () => {
+        try {
+            const url = client.mxcUrlToHttp(mxc, width, height, 'crop', false, true, true);
+            if (!url) return '';
+            const token = mediaAccessToken();
+            const res = await fetch(url, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                cache: 'no-store',
+            });
+            if (!res.ok) return '';
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            avatarCache.set(mxc, objectUrl);
+            return objectUrl;
+        } catch {
+            return '';
+        } finally {
+            avatarPending.delete(mxc);
+        }
+    })();
+    avatarPending.set(mxc, promise);
+    return promise;
+}
+
+/** Освобождает blob:URL при выходе/сбросе, чтобы не течила память вкладки. */
+function clearAvatarCache() {
+    for (const url of avatarCache.values()) {
+        try {
+            URL.revokeObjectURL(url);
+        } catch {
+            // Браузер уже мог сбросить контекст — не критично.
+        }
+    }
+    avatarCache.clear();
+    avatarPending.clear();
+}
+
+/** Публичный резолвер превью аватара заданного размера (mxc -> blob:URL или ''). */
+export async function resolveAvatarUrl(mxc, size = 96) {
+    return resolveMediaUrl(mxc, size, size);
+}

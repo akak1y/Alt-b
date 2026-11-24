@@ -1,0 +1,39 @@
+{
+    "name": "alt-client",
+    "version": "0.5.0",
+    "private": true,
+    "description": "Alt Matrix web client and static file server",
+    "main": "server.js",
+    "scripts": {
+        "start": "npm run build && node server.js",
+        "dev": "nodemon --watch server.js --watch build-client.js --watch public/index.html --watch public/js --ignore public/js/alt.js --exec 'npm run build && node server.js'",
+        "dev:win": "npm run build && nodemon server.js --watch build-client.js --watch public/index.html --watch public/js --ignore public/js/alt.js",
+        "build": "node build-client.js",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "test": "npm run build && vitest run",
+        "test:watch": "vitest",
+        "check": "prettier --check . && eslint . && npm test"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "dependencies": {
+        "express": "^4.21.2",
+        "matrix-js-sdk": "37.13.0",
+        "vue": "3.5.13"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.9.0",
+        "@vue/compiler-dom": "3.5.13",
+        "esbuild": "^0.21.5",
+        "eslint": "^9.9.0",
+        "globals": "^15.9.0",
+        "jsdom": "^26.1.0",
+        "nodemon": "^3.1.4",
+        "prettier": "^3.3.3",
+        "vitest": "^2.1.8"
+    }
+}
